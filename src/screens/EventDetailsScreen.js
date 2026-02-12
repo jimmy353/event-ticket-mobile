@@ -68,12 +68,9 @@ export default function EventDetailsScreen({ route, navigation }) {
 
   const total = selectedTicket ? selectedTicket.price * quantity : 0;
 
-  const imageUrl =
-    event?.image?.startsWith("http")
-      ? event.image
-      : event?.image
-      ? `${API_URL}${event.image}`
-      : null;
+  const imageUrl = event?.image
+  ? event.image.replace("http://", "https://") + "?v=" + new Date().getTime()
+  : null;
 
   return (
     <SafeAreaView style={styles.container}>

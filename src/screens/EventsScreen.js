@@ -40,9 +40,14 @@ export default function EventsScreen({ navigation }) {
   }
 
   function getImageUrl(image) {
-    if (!image) return null;
-    return image.startsWith("http") ? image : `${API_URL}${image}`;
-  }
+  if (!image) return null;
+
+  // force https always
+  let fixed = image.replace("http://", "https://");
+
+  // cache buster so phone doesn't keep old broken image
+  return fixed + "?v=" + new Date().getTime();
+}
 
   function renderItem({ item }) {
     const imageUrl = getImageUrl(item.image);

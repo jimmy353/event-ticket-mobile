@@ -44,9 +44,14 @@ export default function HomeScreen({ navigation }) {
   }
 
   function getImageUrl(image) {
-    if (!image) return null;
-    return image.startsWith("http") ? image : `${API_URL}${image}`;
+  if (!image) return null;
+
+  if (image.startsWith("http://")) {
+    return image.replace("http://", "https://");
   }
+
+  return image.startsWith("http") ? image : `${API_URL}${image}`;
+}
 
   const upcomingEvents = events.slice(0, 6);
   const trendingEvents = events.slice(0, 4);
