@@ -1,29 +1,36 @@
 {
   "expo": {
-    "name": "event-ticket-mobile",
+    "name": "Sirheart Events",
     "slug": "event-ticket-mobile",
+    "scheme": "sirheart_events",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "icon": "./src/assets/icon.png",
+    "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./src/assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      "package": "com.sirheartevents.app",
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./src/assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "58dcd0dd-32d4-47f1-b87f-33c755344f33"
+      }
     }
   }
 }
