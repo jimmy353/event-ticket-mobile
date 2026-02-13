@@ -7,13 +7,15 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 
-import { apiFetch, API_URL } from "../services/api";
+import { apiFetch } from "../services/api";
 
 export default function EventsScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -39,15 +41,25 @@ export default function EventsScreen({ navigation }) {
     }
   }
 
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchEvents();
+    setRefreshing(false);
+  }
+
+  // ✅ FIX CLOUDINARY IMAGE URL
   function getImageUrl(image) {
-  if (!image) return null;
+    if (!image) return null;
 
-  // force https always
-  let fixed = image.replace("http://", "https://");
+    let fixed = image.replace("http://", "https://");
 
-  // cache buster so phone doesn't keep old broken image
-  return fixed + "?v=" + new Date().getTime();
-}
+    // ✅ optimize cloudinary image (faster + smaller)
+    if (fixed.includes("/upload/")) {
+      fixed = fixed.replace("/upload/", "/upload/w_800,q_auto,f_auto/");
+    }
+
+    return fixed;
+  }
 
   function renderItem({ item }) {
     const imageUrl = getImageUrl(item.image);
@@ -58,22 +70,30 @@ export default function EventsScreen({ navigation }) {
         onPress={() => navigation.navigate("EventDetails", { event: item })}
       >
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.image} />
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={(e) =>
+              console.log("❌ Image failed:", imageUrl, e.nativeEvent.error)
+            }
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
-            <Text style={styles.placeholderText}>EVENT</Text>
+            <Text style={styles.placeholderText}>NO IMAGE</Text>
           </View>
         )}
 
         <View style={styles.cardBody}>
           <Text style={styles.title}>{item.title}</Text>
 
-          <Text style={styles.meta}>
-            📍 {item.location || "Location TBA"}
-          </Text>
+          <Text style={styles.meta}>📍 {item.location || "Location TBA"}</Text>
 
           <Text style={styles.meta}>
-            🗓 {new Date(item.start_date).toDateString()}
+            🗓{" "}
+            {item.start_date
+              ? new Date(item.start_date).toDateString()
+              : "Date TBA"}
           </Text>
 
           <View style={styles.viewBtn}>
@@ -99,6 +119,13 @@ export default function EventsScreen({ navigation }) {
           data={events}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#7CFF00"
+            />
+          }
           contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
         />
@@ -130,36 +157,44 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#111",
   },
+
   image: {
     width: "100%",
-    height: 180,
+    height: 190,
+    backgroundColor: "#111",
   },
+
   imagePlaceholder: {
     width: "100%",
-    height: 180,
+    height: 190,
     backgroundColor: "#111",
     alignItems: "center",
     justifyContent: "center",
   },
+
   placeholderText: {
     color: "#7CFF00",
     fontWeight: "bold",
     letterSpacing: 2,
   },
+
   cardBody: {
     padding: 14,
   },
+
   title: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 6,
   },
+
   meta: {
     color: "#aaa",
     fontSize: 13,
     marginBottom: 4,
   },
+
   viewBtn: {
     marginTop: 12,
     backgroundColor: "#7CFF00",
@@ -167,6 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
+
   viewText: {
     color: "#000",
     fontWeight: "bold",
