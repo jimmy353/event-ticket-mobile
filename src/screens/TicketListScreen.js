@@ -1,12 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://192.168.0.146:8000";
+import { API_URL } from "../services/api";
 
 export default function TicketListScreen({ route, navigation }) {
   const { eventId } = route.params;
+
   const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [buying, setBuying] = useState(false);
 
   useEffect(() => {
     loadTickets();
@@ -15,10 +26,8 @@ export default function TicketListScreen({ route, navigation }) {
   async function refreshAccessToken() {
     try {
       const refresh = await AsyncStorage.getItem("refresh");
-
       if (!refresh) return null;
 
-      // ✅ FIXED ENDPOINT
       const res = await fetch(`${API_URL}/api/auth/refresh/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,6 +52,8 @@ export default function TicketListScreen({ route, navigation }) {
 
   async function loadTickets() {
     try {
+      setLoading(true);
+
       let token = await AsyncStorage.getItem("access");
 
       let res = await fetch(`${API_URL}/api/tickets/?event=${eventId}`, {
@@ -91,6 +102,86 @@ export default function TicketListScreen({ route, navigation }) {
     } catch (e) {
       console.log("Ticket error:", e);
       setTickets([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function buyTicket(ticketTypeId) {
+    try {
+      setBuying(true);
+
+      let token = await AsyncStorage.getItem("access");
+
+      let res = await fetch(`${API_URL}/api/tickets/create/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ticket_type_id: ticketTypeId,
+          quantity: 1,
+        }),
+      });
+
+      let text = await res.text();
+      let json;
+
+      try {
+        json = JSON.parse(text);
+      } catch {
+        console.log("❌ Server returned HTML instead of JSON:", text);
+        Alert.alert("Ticket Error", "Server returned invalid response.");
+        return;
+      }
+
+      // refresh token if expired
+      if (res.status === 401 || json?.code === "token_not_valid") {
+        const newToken = await refreshAccessToken();
+
+        if (!newToken) {
+          navigation.replace("Login");
+          return;
+        }
+
+        res = await fetch(`${API_URL}/api/tickets/create/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${newToken}`,
+          },
+          body: JSON.stringify({
+            ticket_type_id: ticketTypeId,
+            quantity: 1,
+          }),
+        });
+
+        text = await res.text();
+
+        try {
+          json = JSON.parse(text);
+        } catch {
+          console.log("❌ Server returned HTML instead of JSON:", text);
+          Alert.alert("Ticket Error", "Server returned invalid response.");
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        Alert.alert("Ticket Error", json?.error || "Failed to buy ticket");
+        return;
+      }
+
+      Alert.alert("Success ✅", "Ticket purchased successfully!");
+
+      // refresh ticket list so available count updates
+      loadTickets();
+    } catch (err) {
+      console.log("Buy ticket error:", err);
+      Alert.alert("Ticket Error", "Something went wrong.");
+    } finally {
+      setBuying(false);
     }
   }
 
@@ -98,25 +189,33 @@ export default function TicketListScreen({ route, navigation }) {
     <ScrollView style={styles.container}>
       <Text style={styles.header}>🎫 Tickets</Text>
 
-      {tickets.length === 0 && (
+      {loading ? (
+        <ActivityIndicator size="large" color="#7CFF00" style={{ marginTop: 50 }} />
+      ) : tickets.length === 0 ? (
         <Text style={styles.empty}>No tickets available</Text>
+      ) : (
+        tickets.map((t) => (
+          <View key={t.id} style={styles.card}>
+            <Text style={styles.name}>{t.name}</Text>
+
+            <Text style={styles.price}>SSP {t.price}</Text>
+
+            <Text style={styles.meta}>
+              Available: {t.available}
+            </Text>
+
+            <Pressable
+              style={styles.buyBtn}
+              disabled={buying}
+              onPress={() => buyTicket(t.id)}
+            >
+              <Text style={styles.buyText}>
+                {buying ? "PROCESSING..." : "Buy Ticket"}
+              </Text>
+            </Pressable>
+          </View>
+        ))
       )}
-
-      {tickets.map((t) => (
-        <View key={t.id} style={styles.card}>
-          <Text style={styles.name}>{t.name}</Text>
-
-          <Text style={styles.price}>SSP {t.price}</Text>
-
-          <Text style={styles.meta}>
-            Available: {t.quantity_total - t.quantity_sold}
-          </Text>
-
-          <Pressable style={styles.buyBtn}>
-            <Text style={styles.buyText}>Buy Ticket</Text>
-          </Pressable>
-        </View>
-      ))}
     </ScrollView>
   );
 }
