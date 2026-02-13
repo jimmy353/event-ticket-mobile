@@ -99,6 +99,7 @@ export default function RegisterScreen({ navigation }) {
 
       const data = await safeJson(res);
 
+      // ✅ If backend returns invalid json
       if (data?.raw) {
         console.log("❌ REGISTER RESPONSE NOT JSON:", data.raw);
         Alert.alert("Server Error", "Backend returned invalid response");
@@ -106,12 +107,29 @@ export default function RegisterScreen({ navigation }) {
         return;
       }
 
+      // ❌ Registration Failed
       if (!res.ok) {
-        Alert.alert("Register Failed", data.detail || data.error || "Try again");
+        console.log("❌ REGISTER ERROR:", data);
+
+        let message = "Try again";
+
+        if (data?.detail) message = data.detail;
+        else if (data?.error) message = data.error;
+        else if (typeof data === "object") {
+          message = Object.entries(data)
+            .map(([key, value]) => {
+              if (Array.isArray(value)) return `${key}: ${value.join(", ")}`;
+              return `${key}: ${value}`;
+            })
+            .join("\n");
+        }
+
+        Alert.alert("Register Failed", message);
         setLoading(false);
         return;
       }
 
+      // ✅ Organizer registration
       if (role === "organizer") {
         Alert.alert(
           "Request Submitted ✅",
@@ -127,6 +145,7 @@ export default function RegisterScreen({ navigation }) {
         return;
       }
 
+      // ✅ Customer registration
       Alert.alert("Success ✅", "Customer account created successfully!");
 
       navigation.reset({
@@ -134,7 +153,8 @@ export default function RegisterScreen({ navigation }) {
         routes: [{ name: "Login" }],
       });
     } catch (err) {
-      Alert.alert("Error", err.message);
+      console.log("❌ Register error:", err);
+      Alert.alert("Error", err.message || "Something went wrong");
     }
 
     setLoading(false);
@@ -150,14 +170,28 @@ export default function RegisterScreen({ navigation }) {
           style={[styles.roleBtn, role === "customer" && styles.roleActive]}
           onPress={() => setRole("customer")}
         >
-          <Text style={styles.roleText}>Customer</Text>
+          <Text
+            style={[
+              styles.roleText,
+              role === "customer" && { color: "#000" },
+            ]}
+          >
+            Customer
+          </Text>
         </Pressable>
 
         <Pressable
           style={[styles.roleBtn, role === "organizer" && styles.roleActive]}
           onPress={() => setRole("organizer")}
         >
-          <Text style={styles.roleText}>Organizer</Text>
+          <Text
+            style={[
+              styles.roleText,
+              role === "organizer" && { color: "#000" },
+            ]}
+          >
+            Organizer
+          </Text>
         </Pressable>
       </View>
 
