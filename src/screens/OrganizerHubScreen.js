@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Pressable,
   Alert,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,8 +28,15 @@ export default function OrganizerHubScreen({ navigation }) {
     platform_commission: 0,
   });
 
+  const [organizer, setOrganizer] = useState({
+    name: "Organizer",
+    logo: null,
+    email: "",
+  });
+
   useEffect(() => {
     fetchDashboard();
+    fetchOrganizerProfile();
   }, []);
 
   // ✅ Format numbers with commas
@@ -44,7 +52,7 @@ export default function OrganizerHubScreen({ navigation }) {
     try {
       return JSON.parse(text);
     } catch {
-      console.log("❌ Organizer dashboard returned HTML:", text);
+      console.log("❌ Organizer hub returned HTML:", text);
       return { error: "Server returned invalid response" };
     }
   }
@@ -77,7 +85,27 @@ export default function OrganizerHubScreen({ navigation }) {
     setLoading(false);
   }
 
-  // ✅ LOGOUT (FIXED)
+  async function fetchOrganizerProfile() {
+    try {
+      const res = await apiFetch("/api/auth/profile/");
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        console.log("❌ Profile fetch error:", data);
+        return;
+      }
+
+      setOrganizer({
+        name: data?.full_name || data?.name || "Organizer",
+        logo: data?.logo || data?.profile_image || null,
+        email: data?.email || "",
+      });
+    } catch (err) {
+      console.log("❌ Organizer profile fetch error:", err.message);
+    }
+  }
+
+  // ✅ LOGOUT
   const handleLogout = async () => {
     Alert.alert("Logout", "Do you want to logout?", [
       { text: "Cancel", style: "cancel" },
@@ -88,7 +116,7 @@ export default function OrganizerHubScreen({ navigation }) {
           try {
             await AsyncStorage.removeItem("access");
             await AsyncStorage.removeItem("refresh");
-            await AsyncStorage.removeItem("is_organizer"); // ✅ VERY IMPORTANT
+            await AsyncStorage.removeItem("is_organizer");
 
             navigation.reset({
               index: 0,
@@ -123,7 +151,22 @@ export default function OrganizerHubScreen({ navigation }) {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.small}>Organizer Hub</Text>
-          <Text style={styles.big}>Manage Your Events</Text>
+          <Text style={styles.big}>Manage Your Business</Text>
+
+          <View style={styles.organizerRow}>
+            {organizer.logo ? (
+              <Image source={{ uri: organizer.logo }} style={styles.logo} />
+            ) : (
+              <View style={styles.logoPlaceholder}>
+                <Ionicons name="person" size={18} color="#000" />
+              </View>
+            )}
+
+            <View>
+              <Text style={styles.organizerName}>{organizer.name}</Text>
+              <Text style={styles.organizerEmail}>{organizer.email}</Text>
+            </View>
+          </View>
         </View>
 
         {/* RIGHT ICONS */}
@@ -200,32 +243,23 @@ export default function OrganizerHubScreen({ navigation }) {
         </View>
       </View>
 
-      {/* ACTION BUTTONS */}
+      {/* QUICK ACTIONS */}
       <Text style={styles.sectionTitle}>Quick Actions</Text>
 
       <Pressable
         style={styles.actionBtn}
-        onPress={() => navigation.navigate("OrganizerSelectEvent")}
+        onPress={() => navigation.navigate("OrganizerEvents")}
       >
-        <Ionicons name="qr-code" size={24} color="#7CFF00" />
-        <Text style={styles.actionText}>Scan Tickets</Text>
+        <Ionicons name="calendar" size={24} color="#7CFF00" />
+        <Text style={styles.actionText}>Events</Text>
       </Pressable>
 
       <Pressable
         style={styles.actionBtn}
-        onPress={() => navigation.navigate("CreateEvent")}
+        onPress={() => navigation.navigate("OrganizerTickets")}
       >
-        <Ionicons name="add-circle" size={24} color="#7CFF00" />
-        <Text style={styles.actionText}>Create New Event</Text>
-      </Pressable>
-
-      {/* ✅ NEW QUICK ACTION (CREATE TICKET TYPE) */}
-      <Pressable
-        style={styles.actionBtn}
-        onPress={() => navigation.navigate("CreateTicketType")}
-      >
-        <Ionicons name="pricetags" size={24} color="#00d4ff" />
-        <Text style={styles.actionText}>Create Ticket Type</Text>
+        <Ionicons name="ticket" size={24} color="#7CFF00" />
+        <Text style={styles.actionText}>Tickets</Text>
       </Pressable>
 
       <Pressable
@@ -233,15 +267,15 @@ export default function OrganizerHubScreen({ navigation }) {
         onPress={() => navigation.navigate("OrganizerOrders")}
       >
         <Ionicons name="receipt" size={24} color="#00d4ff" />
-        <Text style={styles.actionText}>View Orders</Text>
+        <Text style={styles.actionText}>Orders</Text>
       </Pressable>
 
       <Pressable
         style={styles.actionBtn}
-        onPress={() => navigation.navigate("OrganizerRefunds")}
+        onPress={() => navigation.navigate("OrganizerPayments")}
       >
-        <Ionicons name="return-down-back" size={24} color="#ff4d4d" />
-        <Text style={styles.actionText}>Refund Requests</Text>
+        <Ionicons name="card" size={24} color="#ffcc00" />
+        <Text style={styles.actionText}>Payments</Text>
       </Pressable>
 
       <Pressable
@@ -249,15 +283,31 @@ export default function OrganizerHubScreen({ navigation }) {
         onPress={() => navigation.navigate("OrganizerPayouts")}
       >
         <Ionicons name="swap-horizontal" size={24} color="#ffcc00" />
-        <Text style={styles.actionText}>View Payouts</Text>
+        <Text style={styles.actionText}>Payouts</Text>
       </Pressable>
 
       <Pressable
         style={styles.actionBtn}
-        onPress={() => Alert.alert("Coming Soon", "Settings page coming soon")}
+        onPress={() => navigation.navigate("OrganizerRefunds")}
       >
-        <Ionicons name="settings" size={24} color="#ff00ff" />
-        <Text style={styles.actionText}>Organizer Settings</Text>
+        <Ionicons name="return-down-back" size={24} color="#ff4d4d" />
+        <Text style={styles.actionText}>Refunds</Text>
+      </Pressable>
+
+      <Pressable
+        style={styles.actionBtn}
+        onPress={() => navigation.navigate("OrganizerWallets")}
+      >
+        <Ionicons name="wallet" size={24} color="#7CFF00" />
+        <Text style={styles.actionText}>Wallets</Text>
+      </Pressable>
+
+      <Pressable
+        style={styles.actionBtn}
+        onPress={() => navigation.navigate("OrganizerMyAccount")}
+      >
+        <Ionicons name="person-circle" size={26} color="#ff00ff" />
+        <Text style={styles.actionText}>My Account</Text>
       </Pressable>
 
       {/* FOOTER */}
@@ -288,7 +338,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 22,
   },
 
@@ -309,6 +359,42 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     marginTop: 3,
+  },
+
+  organizerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    gap: 10,
+  },
+
+  organizerName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
+  organizerEmail: {
+    color: "#777",
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  logo: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+
+  logoPlaceholder: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    backgroundColor: "#7CFF00",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   iconBtn: {
