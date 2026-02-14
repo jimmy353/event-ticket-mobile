@@ -219,6 +219,15 @@ export default function OrganizerHubScreen({ navigation }) {
         <Text style={styles.actionText}>Create New Event</Text>
       </Pressable>
 
+      {/* ✅ NEW QUICK ACTION (CREATE TICKET TYPE) */}
+      <Pressable
+        style={styles.actionBtn}
+        onPress={() => navigation.navigate("CreateTicketType")}
+      >
+        <Ionicons name="pricetags" size={24} color="#00d4ff" />
+        <Text style={styles.actionText}>Create Ticket Type</Text>
+      </Pressable>
+
       <Pressable
         style={styles.actionBtn}
         onPress={() => navigation.navigate("OrganizerOrders")}

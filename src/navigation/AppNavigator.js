@@ -14,6 +14,7 @@ import CheckoutScreen from "../screens/CheckoutScreen";
 import PaymentSuccessScreen from "../screens/PaymentSuccessScreen";
 
 import CreateEventScreen from "../screens/CreateEventScreen";
+import CreateTicketTypeScreen from "./screens/CreateTicketTypeScreen";
 import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
 import OrganizerPayoutsScreen from "../screens/OrganizerPayoutsScreen";
 import OrganizerSelectEventScreen from "../screens/OrganizerSelectEventScreen";
@@ -90,6 +91,7 @@ export default function AppNavigator() {
 
       {/* ORGANIZER */}
       <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
+      <Stack.Screen name="CreateTicketType" component={CreateTicketTypeScreen} />
       <Stack.Screen name="OrganizerOrders" component={OrganizerOrdersScreen} />
       <Stack.Screen name="OrganizerPayouts" component={OrganizerPayoutsScreen} />
       <Stack.Screen
