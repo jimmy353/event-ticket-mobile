@@ -14,7 +14,7 @@ import CheckoutScreen from "../screens/CheckoutScreen";
 import PaymentSuccessScreen from "../screens/PaymentSuccessScreen";
 
 import CreateEventScreen from "../screens/CreateEventScreen";
-import CreateTicketTypeScreen from "./screens/CreateTicketTypeScreen";
+import CreateTicketTypeScreen from "../screens/CreateTicketTypeScreen";
 import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
 import OrganizerPayoutsScreen from "../screens/OrganizerPayoutsScreen";
 import OrganizerSelectEventScreen from "../screens/OrganizerSelectEventScreen";
