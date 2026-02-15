@@ -13,9 +13,6 @@ import TicketListScreen from "../screens/TicketListScreen";
 import CheckoutScreen from "../screens/CheckoutScreen";
 import PaymentSuccessScreen from "../screens/PaymentSuccessScreen";
 
-import CreateEventScreen from "../screens/CreateEventScreen";
-
-import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
 import OrganizerPayoutsScreen from "../screens/OrganizerPayoutsScreen";
 import OrganizerSelectEventScreen from "../screens/OrganizerSelectEventScreen";
 import OrganizerScanScreen from "../screens/OrganizerScanScreen";
@@ -95,13 +92,8 @@ export default function AppNavigator() {
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
 
-      {/* ORGANIZER CREATE */}
-      <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
-
       {/* ORGANIZER MODULES */}
-      <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
-      <Stack.Screen name="OrganizerTickets" component={OrganizerTicketsScreen} />
-      <Stack.Screen name="OrganizerOrders" component={OrganizerOrdersScreen} />
+     
       <Stack.Screen
         name="OrganizerPayments"
         component={OrganizerPaymentsScreen}
