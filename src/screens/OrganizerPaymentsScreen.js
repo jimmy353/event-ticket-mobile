@@ -3,225 +3,152 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Pressable,
   ActivityIndicator,
-  Alert,
   Modal,
-  ScrollView,
+  FlatList,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { apiFetch, safeJson } from "../services/api";
 
 export default function OrganizerPaymentsScreen({ navigation }) {
-  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const [showEventPicker, setShowEventPicker] = useState(false);
 
   useEffect(() => {
-    fetchPayments();
+    fetchEvents();
   }, []);
 
-  // ✅ Format money
-  const formatMoney = (amount) => {
-    if (!amount) return "0";
-    return Number(amount).toLocaleString("en-US");
-  };
-
-  // ✅ Format date
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "N/A";
-    const d = new Date(dateStr);
-    return d.toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  async function fetchPayments() {
+  async function fetchEvents() {
     try {
       setLoading(true);
 
-      // ✅ IMPORTANT: backend must have this endpoint
-      const res = await apiFetch("/api/payments/organizer/");
+      const res = await apiFetch("/api/events/");
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Organizer payments error:", data);
-        Alert.alert("Error", data?.error || "Failed to load payments.");
+        console.log("❌ Organizer Payments Events error:", data);
+        Alert.alert("Error", data?.detail || "Failed to load events.");
         return;
       }
 
-      setPayments(data);
+      setEvents(data);
+
+      if (data.length > 0) {
+        setSelectedEvent(data[0]);
+      } else {
+        setSelectedEvent(null);
+      }
     } catch (err) {
-      console.log("❌ Fetch payments failed:", err);
-      Alert.alert("Error", "Failed to load payments.");
+      console.log("❌ Organizer Payments fetch events failed:", err);
+      Alert.alert("Error", "Failed to load events.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function openPayment(payment) {
-    setSelectedPayment(payment);
-    setShowDetails(true);
-  }
-
-  function getStatusColor(status) {
-    if (!status) return "#aaa";
-
-    if (status === "success") return "#7CFF00";
-    if (status === "pending") return "#ffcc00";
-    if (status === "failed") return "#ff4d4d";
-    if (status === "refunded") return "#00d4ff";
-
-    return "#aaa";
   }
 
   return (
     <View style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
-        <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color="#7CFF00" />
         </Pressable>
 
-        <Text style={styles.headerTitle}>Payments</Text>
+        <Text style={styles.title}>Payments</Text>
 
-        <Pressable style={styles.iconBtn} onPress={fetchPayments}>
-          <Ionicons name="refresh" size={22} color="#7CFF00" />
+        <Pressable style={styles.refreshBtn} onPress={fetchEvents}>
+          <Ionicons name="refresh" size={22} color="#00d4ff" />
         </Pressable>
       </View>
 
-      {/* LIST */}
+      {/* SELECT EVENT */}
+      <Pressable
+        style={styles.selectEventBtn}
+        onPress={() => setShowEventPicker(true)}
+      >
+        <View>
+          <Text style={styles.selectLabel}>Selected Event</Text>
+          <Text style={styles.selectValue}>
+            {selectedEvent ? selectedEvent.title : "No Event Found"}
+          </Text>
+        </View>
+
+        <Ionicons name="chevron-down" size={20} color="#7CFF00" />
+      </Pressable>
+
+      {/* BODY */}
       {loading ? (
-        <ActivityIndicator size="large" color="#7CFF00" style={{ marginTop: 40 }} />
-      ) : payments.length === 0 ? (
-        <Text style={styles.emptyText}>No payments found yet.</Text>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color="#7CFF00" />
+          <Text style={styles.loadingText}>Loading payments...</Text>
+        </View>
       ) : (
-        <FlatList
-          data={payments}
-          keyExtractor={(item) => item.id.toString()}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
-          renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => openPayment(item)}>
-              <View style={styles.cardTop}>
-                <Text style={styles.paymentId}>PAY-{item.id}</Text>
+        <View style={styles.body}>
+          <Ionicons name="card" size={60} color="#7CFF00" />
+          <Text style={styles.textTitle}>Payments Module</Text>
 
-                <Text style={[styles.status, { color: getStatusColor(item.status) }]}>
-                  {String(item.status).toUpperCase()}
-                </Text>
-              </View>
+          <Text style={styles.textDesc}>
+            This screen will show payments made for the selected event.
+          </Text>
 
-              <Text style={styles.amount}>
-                SSP {formatMoney(item.amount)}
-              </Text>
+          <Text style={styles.note}>
+            Selected Event ID: {selectedEvent ? selectedEvent.id : "None"}
+          </Text>
 
-              <View style={styles.row}>
-                <Text style={styles.label}>Provider:</Text>
-                <Text style={styles.value}>{item.provider}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Phone:</Text>
-                <Text style={styles.value}>{item.phone}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Event:</Text>
-                <Text style={styles.value}>{item.event_title || "N/A"}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Customer:</Text>
-                <Text style={styles.value}>{item.customer_email || "N/A"}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Date:</Text>
-                <Text style={styles.value}>{formatDate(item.created_at)}</Text>
-              </View>
-
-              <Text style={styles.tapHint}>Tap to view details</Text>
-            </Pressable>
-          )}
-        />
+          <Pressable
+            style={styles.comingBtn}
+            onPress={() =>
+              Alert.alert("Coming Soon", "Payments list will be added next.")
+            }
+          >
+            <Text style={styles.comingBtnText}>View Payments (Soon)</Text>
+          </Pressable>
+        </View>
       )}
 
-      {/* DETAILS MODAL */}
-      <Modal visible={showDetails} animationType="slide" transparent>
+      {/* EVENT PICKER MODAL */}
+      <Modal visible={showEventPicker} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Payment Details</Text>
+            <Text style={styles.modalTitle}>Select Event</Text>
 
-                <Pressable onPress={() => setShowDetails(false)}>
-                  <Ionicons name="close" size={26} color="#fff" />
-                </Pressable>
-              </View>
+            {events.length === 0 ? (
+              <Text style={styles.emptyText}>No events available.</Text>
+            ) : (
+              <FlatList
+                data={events}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={[
+                      styles.eventOption,
+                      selectedEvent?.id === item.id && styles.eventOptionActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedEvent(item);
+                      setShowEventPicker(false);
+                    }}
+                  >
+                    <Text style={styles.eventOptionText}>{item.title}</Text>
+                    <Text style={styles.eventOptionSmall}>{item.location}</Text>
+                  </Pressable>
+                )}
+              />
+            )}
 
-              {selectedPayment && (
-                <>
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Payment ID:</Text> PAY-{selectedPayment.id}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Status:</Text>{" "}
-                    <Text style={{ color: getStatusColor(selectedPayment.status) }}>
-                      {selectedPayment.status}
-                    </Text>
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Amount:</Text> SSP{" "}
-                    {formatMoney(selectedPayment.amount)}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Provider:</Text> {selectedPayment.provider}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Phone:</Text> {selectedPayment.phone}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Order ID:</Text>{" "}
-                    {selectedPayment.order_id || "N/A"}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Event:</Text>{" "}
-                    {selectedPayment.event_title || "N/A"}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Customer:</Text>{" "}
-                    {selectedPayment.customer_email || "N/A"}
-                  </Text>
-
-                  <Text style={styles.modalText}>
-                    <Text style={styles.bold}>Created:</Text>{" "}
-                    {formatDate(selectedPayment.created_at)}
-                  </Text>
-                </>
-              )}
-
-              <Pressable
-                style={styles.closeBtn}
-                onPress={() => setShowDetails(false)}
-              >
-                <Text style={styles.closeText}>Close</Text>
-              </Pressable>
-            </ScrollView>
+            <Pressable
+              style={[styles.modalBtn, { backgroundColor: "#333" }]}
+              onPress={() => setShowEventPicker(false)}
+            >
+              <Text style={styles.modalBtnText}>Close</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -229,24 +156,24 @@ export default function OrganizerPaymentsScreen({ navigation }) {
   );
 }
 
-/* ===================== STYLES ===================== */
+/* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-    paddingHorizontal: 16,
-    paddingTop: 55,
+    paddingHorizontal: 18,
+    paddingTop: 60,
   },
 
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 22,
   },
 
-  iconBtn: {
+  backBtn: {
     width: 46,
     height: 46,
     borderRadius: 18,
@@ -257,81 +184,106 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  headerTitle: {
+  refreshBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  title: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
   },
 
-  emptyText: {
-    color: "#777",
-    textAlign: "center",
-    marginTop: 80,
-    fontSize: 14,
-  },
-
-  card: {
+  selectEventBtn: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     borderRadius: 20,
-    padding: 18,
-    marginBottom: 14,
-  },
-
-  cardTop: {
+    padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 10,
+    alignItems: "center",
+    marginBottom: 20,
   },
 
-  paymentId: {
+  selectLabel: {
     color: "#aaa",
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: 12,
+    fontWeight: "600",
   },
 
-  status: {
-    fontSize: 13,
+  selectValue: {
+    color: "#7CFF00",
+    fontSize: 15,
     fontWeight: "bold",
+    marginTop: 4,
   },
 
-  amount: {
+  loading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    color: "#aaa",
+    marginTop: 12,
+    fontSize: 14,
+  },
+
+  body: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 80,
+  },
+
+  textTitle: {
     color: "#fff",
     fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 14,
+    marginTop: 20,
   },
 
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
+  textDesc: {
+    color: "#aaa",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 20,
+    paddingHorizontal: 20,
   },
 
-  label: {
-    color: "#777",
-    fontSize: 13,
-  },
-
-  value: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "bold",
-    maxWidth: "65%",
-    textAlign: "right",
-  },
-
-  tapHint: {
-    color: "#7CFF00",
+  note: {
+    color: "#666",
+    marginTop: 20,
     fontSize: 12,
-    marginTop: 12,
-    textAlign: "right",
+  },
+
+  comingBtn: {
+    marginTop: 25,
+    backgroundColor: "#7CFF00",
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 22,
+  },
+
+  comingBtnText: {
+    color: "#000",
+    fontWeight: "bold",
+    fontSize: 15,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.75)",
     justifyContent: "center",
     padding: 20,
   },
@@ -345,41 +297,55 @@ const styles = StyleSheet.create({
     maxHeight: "85%",
   },
 
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-    alignItems: "center",
-  },
-
   modalTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
   },
 
-  modalText: {
-    color: "#aaa",
-    fontSize: 14,
+  emptyText: {
+    color: "#777",
+    textAlign: "center",
+    marginTop: 30,
+    marginBottom: 30,
+  },
+
+  eventOption: {
+    backgroundColor: "#000",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#222",
     marginBottom: 10,
   },
 
-  bold: {
+  eventOptionActive: {
+    borderColor: "#7CFF00",
+  },
+
+  eventOptionText: {
     color: "#fff",
     fontWeight: "bold",
+    fontSize: 14,
   },
 
-  closeBtn: {
-    backgroundColor: "#7CFF00",
-    padding: 16,
-    borderRadius: 18,
+  eventOptionSmall: {
+    color: "#777",
+    marginTop: 4,
+    fontSize: 12,
+  },
+
+  modalBtn: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 20,
   },
 
-  closeText: {
-    color: "#000",
+  modalBtnText: {
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
   },
 });
