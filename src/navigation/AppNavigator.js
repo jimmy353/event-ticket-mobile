@@ -94,6 +94,7 @@ export default function AppNavigator() {
 
       {/* ORGANIZER MODULES */}
       <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
+      <Stack.Screen name="OrganizerTickets" component={OrganizerTicketsScreen} />
 
      
       
