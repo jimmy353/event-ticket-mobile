@@ -93,7 +93,10 @@ export default function AppNavigator() {
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
 
       {/* ORGANIZER MODULES */}
+      <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
+
      
+      
       <Stack.Screen
         name="OrganizerPayments"
         component={OrganizerPaymentsScreen}
