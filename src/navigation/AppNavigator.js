@@ -23,6 +23,7 @@ import OrganizerTicketsScreen from "../screens/OrganizerTicketsScreen";
 import OrganizerPaymentsScreen from "../screens/OrganizerPaymentsScreen";
 import OrganizerWalletsScreen from "../screens/OrganizerWalletsScreen";
 import OrganizerMyAccountScreen from "../screens/OrganizerMyAccountScreen";
+import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
 
 import RefundRequestScreen from "../screens/RefundRequestScreen";
 import MyOrdersScreen from "../screens/MyOrdersScreen";
@@ -95,6 +96,7 @@ export default function AppNavigator() {
       {/* ORGANIZER MODULES */}
       <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
       <Stack.Screen name="OrganizerTickets" component={OrganizerTicketsScreen} />
+      <Stack.Screen name="OrganizerOrders" component={OrganizerOrdersScreen} options={{ headerShown: false }} />
 
      
       
