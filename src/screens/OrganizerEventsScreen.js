@@ -10,9 +10,12 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  Image,
+  RefreshControl,
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 
 import { apiFetch, safeJson } from "../services/api";
 
@@ -20,8 +23,27 @@ export default function OrganizerEventsScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // modal
+  // search
+  const [search, setSearch] = useState("");
+
+  // refresh
+  const [refreshing, setRefreshing] = useState(false);
+
+  // pagination
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // create modal
   const [showCreate, setShowCreate] = useState(false);
+
+  // view modal
+  const [showView, setShowView] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  // edit modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   // form states
   const [title, setTitle] = useState("");
@@ -37,35 +59,14 @@ export default function OrganizerEventsScreen({ navigation }) {
   const [endTime, setEndTime] = useState("18:00");
 
   const [category, setCategory] = useState("music");
-
   const [imageFile, setImageFile] = useState(null);
 
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    fetchEvents();
+    fetchEvents(1, true);
   }, []);
-
-  async function fetchEvents() {
-    try {
-      setLoading(true);
-
-      const res = await apiFetch("/api/events/");
-      const data = await safeJson(res);
-
-      if (!res.ok) {
-        console.log("❌ Events API Error:", data);
-        throw new Error("Failed to load events");
-      }
-
-      setEvents(data);
-    } catch (error) {
-      console.log("❌ Fetch Events Error:", error);
-      Alert.alert("Error", "Failed to load events.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function resetForm() {
     setTitle("");
@@ -80,9 +81,62 @@ export default function OrganizerEventsScreen({ navigation }) {
   }
 
   function toISO(date, time) {
-    // combine into ISO string
-    // Example: "2026-02-15T10:00:00Z"
     return `${date}T${time}:00Z`;
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleString();
+  }
+
+  async function fetchEvents(pageNumber = 1, reset = false) {
+    try {
+      if (reset) {
+        setLoading(true);
+        setHasMore(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const res = await apiFetch(`/api/events/?page=${pageNumber}`);
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        console.log("❌ Events API Error:", data);
+        throw new Error("Failed to load events");
+      }
+
+      // if backend returns pagination results
+      let results = data;
+
+      if (data.results) {
+        results = data.results;
+        setHasMore(data.next !== null);
+      } else {
+        // if backend returns full list
+        setHasMore(false);
+      }
+
+      if (reset) {
+        setEvents(results);
+      } else {
+        setEvents((prev) => [...prev, ...results]);
+      }
+
+      setPage(pageNumber);
+    } catch (error) {
+      console.log("❌ Fetch Events Error:", error);
+      Alert.alert("Error", "Failed to load events.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchEvents(1, true);
+    setRefreshing(false);
   }
 
   async function pickImage() {
@@ -151,15 +205,98 @@ export default function OrganizerEventsScreen({ navigation }) {
       }
 
       Alert.alert("Success", "Event created successfully!");
-
       setShowCreate(false);
       resetForm();
-      fetchEvents();
+      fetchEvents(1, true);
     } catch (error) {
       console.log("❌ Create Event Failed:", error);
       Alert.alert("Error", "Failed to create event.");
     } finally {
       setCreating(false);
+    }
+  }
+
+  function openViewModal(event) {
+    setSelectedEvent(event);
+    setShowView(true);
+  }
+
+  function openEditModal(event) {
+    setEditingEvent(event);
+
+    setTitle(event.title || "");
+    setDescription(event.description || "");
+    setLocation(event.location || "");
+
+    if (event.start_date) {
+      const s = new Date(event.start_date);
+      setStartDate(s.toISOString().slice(0, 10));
+      setStartTime(s.toISOString().slice(11, 16));
+    }
+
+    if (event.end_date) {
+      const e = new Date(event.end_date);
+      setEndDate(e.toISOString().slice(0, 10));
+      setEndTime(e.toISOString().slice(11, 16));
+    }
+
+    setCategory(event.category || "music");
+    setImageFile(null);
+
+    setShowEdit(true);
+  }
+
+  async function updateEvent() {
+    if (!editingEvent) return;
+
+    if (!title || !description || !location) {
+      Alert.alert("Missing Fields", "Please fill Title, Description and Location.");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+
+      const formData = new FormData();
+
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("location", location);
+      formData.append("category", category);
+
+      formData.append("start_date", toISO(startDate, startTime));
+      formData.append("end_date", toISO(endDate, endTime));
+
+      if (imageFile) {
+        formData.append("image", {
+          uri: imageFile.uri,
+          name: "event.jpg",
+          type: "image/jpeg",
+        });
+      }
+
+      const res = await apiFetch(`/api/events/${editingEvent.id}/`, {
+        method: "PUT",
+        body: formData,
+      });
+
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        console.log("❌ Update Event Error:", data);
+        Alert.alert("Error", data?.detail || "Failed to update event.");
+        return;
+      }
+
+      Alert.alert("Updated", "Event updated successfully!");
+      setShowEdit(false);
+      resetForm();
+      fetchEvents(1, true);
+    } catch (error) {
+      console.log("❌ Update Event Failed:", error);
+      Alert.alert("Error", "Failed to update event.");
+    } finally {
+      setUpdating(false);
     }
   }
 
@@ -183,7 +320,7 @@ export default function OrganizerEventsScreen({ navigation }) {
             }
 
             Alert.alert("Deleted", "Event deleted successfully!");
-            fetchEvents();
+            fetchEvents(1, true);
           } catch (error) {
             console.log("❌ Delete Event Failed:", error);
             Alert.alert("Error", "Failed to delete event.");
@@ -193,60 +330,158 @@ export default function OrganizerEventsScreen({ navigation }) {
     ]);
   }
 
+  const filteredEvents = events.filter((e) => {
+    const s = search.toLowerCase();
+    return (
+      (e.title || "").toLowerCase().includes(s) ||
+      (e.location || "").toLowerCase().includes(s) ||
+      (e.category || "").toLowerCase().includes(s)
+    );
+  });
+
   return (
     <View style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>←</Text>
+        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
 
-        <Text style={styles.title}>My Events</Text>
+        <Text style={styles.headerTitle}>Organizer Events</Text>
 
         <Pressable style={styles.createBtn} onPress={() => setShowCreate(true)}>
-          <Text style={styles.createText}>+ Create</Text>
+          <Ionicons name="add" size={22} color="#000" />
         </Pressable>
+      </View>
+
+      {/* SEARCH */}
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={20} color="#777" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search events..."
+          placeholderTextColor="#666"
+          value={search}
+          onChangeText={setSearch}
+        />
       </View>
 
       {/* LOADING */}
       {loading ? (
         <ActivityIndicator size="large" color="#7CFF00" />
-      ) : events.length === 0 ? (
-        <Text style={styles.empty}>No events found. Create your first event.</Text>
+      ) : filteredEvents.length === 0 ? (
+        <Text style={styles.empty}>No events found.</Text>
       ) : (
         <FlatList
-          data={events}
+          data={filteredEvents}
           keyExtractor={(item) => item.id.toString()}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text style={styles.eventTitle}>{item.title}</Text>
-              <Text style={styles.eventLocation}>{item.location}</Text>
-              <Text style={styles.eventCategory}>Category: {item.category}</Text>
+              {/* IMAGE */}
+              {item.image ? (
+                <Image source={{ uri: item.image }} style={styles.cardImage} />
+              ) : (
+                <View style={styles.noCardImage}>
+                  <Text style={styles.noCardImageText}>No Image</Text>
+                </View>
+              )}
 
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.smallBtn}
-                  onPress={() =>
-                    Alert.alert(
-                      "Event Details",
-                      `Title: ${item.title}\nLocation: ${item.location}\nStart: ${item.start_date}\nEnd: ${item.end_date}`
-                    )
-                  }
-                >
-                  <Text style={styles.smallBtnText}>View</Text>
-                </Pressable>
+              <View style={{ paddingTop: 12 }}>
+                <Text style={styles.eventTitle}>{item.title}</Text>
+                <Text style={styles.eventLocation}>{item.location}</Text>
+                <Text style={styles.eventCategory}>
+                  Category: {item.category}
+                </Text>
 
-                <Pressable
-                  style={[styles.smallBtn, { backgroundColor: "#FF3B30" }]}
-                  onPress={() => deleteEvent(item.id)}
-                >
-                  <Text style={styles.smallBtnText}>Delete</Text>
-                </Pressable>
+                <View style={styles.row}>
+                  <Pressable
+                    style={styles.viewBtn}
+                    onPress={() => openViewModal(item)}
+                  >
+                    <Text style={styles.viewBtnText}>View</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.editBtn}
+                    onPress={() => openEditModal(item)}
+                  >
+                    <Text style={styles.editBtnText}>Edit</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.deleteBtn}
+                    onPress={() => deleteEvent(item.id)}
+                  >
+                    <Text style={styles.deleteBtnText}>Delete</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
           )}
+          ListFooterComponent={
+            hasMore ? (
+              <Pressable
+                style={styles.loadMoreBtn}
+                disabled={loadingMore}
+                onPress={() => fetchEvents(page + 1)}
+              >
+                <Text style={styles.loadMoreText}>
+                  {loadingMore ? "Loading..." : "Load More"}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.endText}>No more events</Text>
+            )
+          }
         />
       )}
+
+      {/* VIEW EVENT MODAL */}
+      <Modal visible={showView} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.viewModalBox}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedEvent?.image ? (
+                <Image
+                  source={{ uri: selectedEvent.image }}
+                  style={styles.modalImage}
+                />
+              ) : (
+                <View style={styles.modalNoImage}>
+                  <Text style={{ color: "#777" }}>No Image</Text>
+                </View>
+              )}
+
+              <Text style={styles.viewTitle}>{selectedEvent?.title}</Text>
+              <Text style={styles.viewText}>
+                📍 Location: {selectedEvent?.location}
+              </Text>
+              <Text style={styles.viewText}>
+                🎶 Category: {selectedEvent?.category}
+              </Text>
+              <Text style={styles.viewText}>
+                🕒 Start: {formatDate(selectedEvent?.start_date)}
+              </Text>
+              <Text style={styles.viewText}>
+                🕒 End: {formatDate(selectedEvent?.end_date)}
+              </Text>
+
+              <Text style={styles.descTitle}>Description</Text>
+              <Text style={styles.descText}>{selectedEvent?.description}</Text>
+
+              <Pressable
+                style={styles.modalCloseBtn}
+                onPress={() => setShowView(false)}
+              >
+                <Text style={styles.modalCloseText}>Close</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* CREATE EVENT MODAL */}
       <Modal visible={showCreate} animationType="slide" transparent>
@@ -282,9 +517,7 @@ export default function OrganizerEventsScreen({ navigation }) {
                 onChangeText={setLocation}
               />
 
-              {/* START DATE */}
               <Text style={styles.label}>Start date:</Text>
-              <Text style={styles.subLabel}>Date:</Text>
               <TextInput
                 style={styles.input}
                 placeholder="YYYY-MM-DD"
@@ -293,7 +526,6 @@ export default function OrganizerEventsScreen({ navigation }) {
                 onChangeText={setStartDate}
               />
 
-              <Text style={styles.subLabel}>Time:</Text>
               <TextInput
                 style={styles.input}
                 placeholder="HH:MM"
@@ -306,9 +538,7 @@ export default function OrganizerEventsScreen({ navigation }) {
                 Note: You are 4 hours ahead of server time.
               </Text>
 
-              {/* END DATE */}
               <Text style={styles.label}>End date:</Text>
-              <Text style={styles.subLabel}>Date:</Text>
               <TextInput
                 style={styles.input}
                 placeholder="YYYY-MM-DD"
@@ -317,7 +547,6 @@ export default function OrganizerEventsScreen({ navigation }) {
                 onChangeText={setEndDate}
               />
 
-              <Text style={styles.subLabel}>Time:</Text>
               <TextInput
                 style={styles.input}
                 placeholder="HH:MM"
@@ -330,16 +559,13 @@ export default function OrganizerEventsScreen({ navigation }) {
                 Note: You are 4 hours ahead of server time.
               </Text>
 
-              {/* IMAGE */}
               <Text style={styles.label}>Image:</Text>
-
               <Pressable style={styles.imageBtn} onPress={pickImage}>
                 <Text style={styles.imageBtnText}>
                   {imageFile ? "Image Selected ✅" : "Choose File"}
                 </Text>
               </Pressable>
 
-              {/* CATEGORY */}
               <Text style={styles.label}>Category:</Text>
 
               <View style={styles.categoryRow}>
@@ -364,11 +590,6 @@ export default function OrganizerEventsScreen({ navigation }) {
                 ))}
               </View>
 
-              {/* ORGANIZER */}
-              <Text style={styles.label}>Organizer:</Text>
-              <Text style={styles.organizerText}>Auto from your account</Text>
-
-              {/* SUBMIT */}
               <Pressable
                 style={[styles.modalBtn, creating && { opacity: 0.6 }]}
                 onPress={createEvent}
@@ -386,7 +607,110 @@ export default function OrganizerEventsScreen({ navigation }) {
                   resetForm();
                 }}
               >
-                <Text style={styles.modalBtnText}>Cancel</Text>
+                <Text style={[styles.modalBtnText, { color: "#fff" }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* EDIT EVENT MODAL */}
+      <Modal visible={showEdit} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Edit Event</Text>
+
+              <Text style={styles.label}>Title:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Event title"
+                placeholderTextColor="#777"
+                value={title}
+                onChangeText={setTitle}
+              />
+
+              <Text style={styles.label}>Description:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Event description"
+                placeholderTextColor="#777"
+                value={description}
+                onChangeText={setDescription}
+              />
+
+              <Text style={styles.label}>Location:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Event location"
+                placeholderTextColor="#777"
+                value={location}
+                onChangeText={setLocation}
+              />
+
+              <Text style={styles.label}>Start date:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#777"
+                value={startDate}
+                onChangeText={setStartDate}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="HH:MM"
+                placeholderTextColor="#777"
+                value={startTime}
+                onChangeText={setStartTime}
+              />
+
+              <Text style={styles.label}>End date:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#777"
+                value={endDate}
+                onChangeText={setEndDate}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="HH:MM"
+                placeholderTextColor="#777"
+                value={endTime}
+                onChangeText={setEndTime}
+              />
+
+              <Text style={styles.label}>New Image (optional):</Text>
+              <Pressable style={styles.imageBtn} onPress={pickImage}>
+                <Text style={styles.imageBtnText}>
+                  {imageFile ? "New Image Selected ✅" : "Choose File"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.modalBtn, updating && { opacity: 0.6 }]}
+                onPress={updateEvent}
+                disabled={updating}
+              >
+                <Text style={styles.modalBtnText}>
+                  {updating ? "Updating..." : "Update Event"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: "#333" }]}
+                onPress={() => {
+                  setShowEdit(false);
+                  resetForm();
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: "#fff" }]}>
+                  Cancel
+                </Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -396,74 +720,212 @@ export default function OrganizerEventsScreen({ navigation }) {
   );
 }
 
+/* ===================== STYLES ===================== */
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000", padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+    paddingHorizontal: 16,
+    paddingTop: 60,
+  },
 
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "space-between",
+    marginBottom: 18,
   },
 
-  back: { color: "#7CFF00", fontSize: 22 },
-  title: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  backBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+
+  headerTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
 
   createBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "#7CFF00",
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
   },
 
-  createText: { fontWeight: "bold", color: "#000" },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    marginBottom: 16,
+  },
 
-  empty: { color: "#999", textAlign: "center", marginTop: 50 },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    marginLeft: 10,
+    fontSize: 15,
+  },
+
+  empty: {
+    color: "#777",
+    textAlign: "center",
+    marginTop: 60,
+    fontSize: 14,
+  },
 
   card: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    padding: 14,
+    borderRadius: 20,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+
+  cardImage: {
+    width: "100%",
+    height: 170,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+
+  noCardImage: {
+    width: "100%",
+    height: 170,
+    borderRadius: 18,
     backgroundColor: "#111",
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 10,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#222",
   },
 
-  eventTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  eventLocation: { color: "#aaa", marginTop: 5 },
-  eventCategory: { color: "#7CFF00", marginTop: 5 },
+  noCardImageText: {
+    color: "#777",
+    fontWeight: "bold",
+  },
+
+  eventTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "bold",
+  },
+
+  eventLocation: {
+    color: "#aaa",
+    marginTop: 6,
+    fontSize: 13,
+  },
+
+  eventCategory: {
+    color: "#7CFF00",
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "600",
+  },
 
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: 14,
+    gap: 10,
   },
 
-  smallBtn: {
+  viewBtn: {
+    flex: 1,
+    backgroundColor: "#00d4ff",
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+
+  viewBtnText: {
+    color: "#000",
+    fontWeight: "bold",
+  },
+
+  editBtn: {
+    flex: 1,
     backgroundColor: "#7CFF00",
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
   },
 
-  smallBtnText: { color: "#000", fontWeight: "bold" },
+  editBtnText: {
+    color: "#000",
+    fontWeight: "bold",
+  },
+
+  deleteBtn: {
+    flex: 1,
+    backgroundColor: "#FF3B30",
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+
+  deleteBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
+  loadMoreBtn: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    padding: 16,
+    borderRadius: 18,
+    marginTop: 10,
+    marginBottom: 30,
+    alignItems: "center",
+  },
+
+  loadMoreText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
+  endText: {
+    color: "#666",
+    textAlign: "center",
+    marginTop: 18,
+    marginBottom: 30,
+  },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.75)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 18,
   },
 
   modalBox: {
     width: "100%",
     maxHeight: "92%",
     backgroundColor: "#111",
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "rgba(255,255,255,0.15)",
   },
 
   modalTitle: {
@@ -475,45 +937,36 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    color: "#fff",
+    color: "#aaa",
     fontWeight: "bold",
     marginTop: 12,
     marginBottom: 5,
   },
 
-  subLabel: {
-    color: "#aaa",
-    marginTop: 5,
-    marginBottom: 4,
-  },
-
   note: {
-    color: "#777",
+    color: "#666",
     fontSize: 12,
     marginTop: 5,
     marginBottom: 10,
   },
 
-  organizerText: {
-    color: "#7CFF00",
-    marginBottom: 10,
-  },
-
   input: {
-    backgroundColor: "#000",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: "#333",
-    padding: 12,
-    borderRadius: 12,
+    borderColor: "rgba(255,255,255,0.15)",
+    padding: 14,
+    borderRadius: 16,
     color: "#fff",
   },
 
   imageBtn: {
     backgroundColor: "#222",
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: "center",
     marginTop: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
 
   imageBtnText: {
@@ -524,18 +977,18 @@ const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 12,
+    gap: 10,
   },
 
   categoryBtn: {
-    borderWidth: 1,
-    borderColor: "#444",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
     flex: 1,
-    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 12,
+    borderRadius: 14,
     alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
 
   categoryActive: {
@@ -555,15 +1008,85 @@ const styles = StyleSheet.create({
 
   modalBtn: {
     backgroundColor: "#7CFF00",
-    padding: 14,
-    borderRadius: 15,
+    padding: 15,
+    borderRadius: 18,
     alignItems: "center",
-    marginTop: 15,
+    marginTop: 16,
   },
 
   modalBtnText: {
     fontWeight: "bold",
     color: "#000",
+    fontSize: 15,
+  },
+
+  viewModalBox: {
+    width: "100%",
+    maxHeight: "92%",
+    backgroundColor: "#111",
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+
+  modalImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 18,
+    marginBottom: 15,
+  },
+
+  modalNoImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 18,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+
+  viewTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 12,
+  },
+
+  viewText: {
+    color: "#aaa",
+    fontSize: 14,
+    marginBottom: 6,
+  },
+
+  descTitle: {
+    color: "#7CFF00",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginTop: 14,
+    marginBottom: 6,
+  },
+
+  descText: {
+    color: "#ddd",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+
+  modalCloseBtn: {
+    backgroundColor: "#7CFF00",
+    padding: 14,
+    borderRadius: 18,
+    alignItems: "center",
+    marginTop: 18,
+  },
+
+  modalCloseText: {
+    color: "#000",
+    fontWeight: "bold",
     fontSize: 15,
   },
 });
