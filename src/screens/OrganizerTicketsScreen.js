@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 import { apiFetch, safeJson } from "../services/api";
@@ -21,6 +23,7 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
   const [loading, setLoading] = useState(true);
 
+  // event select modal
   const [showEventSelect, setShowEventSelect] = useState(false);
 
   // edit modal
@@ -29,7 +32,7 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
-  const [editQuantity, setEditQuantity] = useState("");
+  const [editQuantityTotal, setEditQuantityTotal] = useState("");
 
   useEffect(() => {
     fetchEvents();
@@ -41,6 +44,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
     }
   }, [selectedEvent]);
 
+  // ---------------------------
+  // FETCH EVENTS
+  // ---------------------------
   async function fetchEvents() {
     try {
       setLoading(true);
@@ -49,8 +55,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Events Error:", data);
-        throw new Error("Failed to load events");
+        console.log("❌ Events API Error:", data);
+        Alert.alert("Error", data?.detail || "Failed to load events.");
+        return;
       }
 
       setEvents(data);
@@ -59,47 +66,59 @@ export default function OrganizerTicketsScreen({ navigation }) {
         setSelectedEvent(data[0]);
       }
     } catch (error) {
-      console.log("❌ Fetch Events Error:", error);
+      console.log("❌ Fetch Events Crash:", error);
       Alert.alert("Error", "Failed to load events.");
     } finally {
       setLoading(false);
     }
   }
 
+  // ---------------------------
+  // FETCH TICKETS
+  // ---------------------------
   async function fetchTickets(eventId) {
     try {
       setLoading(true);
 
-      // ✅ correct backend filter
+      // ✅ correct backend endpoint
       const res = await apiFetch(`/api/tickets/?event=${eventId}`);
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Tickets Error:", data);
-        throw new Error("Failed to load tickets");
+        console.log("❌ Tickets API Error:", data);
+        Alert.alert("Error", data?.detail || "Failed to load tickets.");
+        return;
       }
 
       setTickets(data);
     } catch (error) {
-      console.log("❌ Fetch Tickets Error:", error);
+      console.log("❌ Fetch Tickets Crash:", error);
       Alert.alert("Error", "Failed to load tickets.");
     } finally {
       setLoading(false);
     }
   }
 
+  // ---------------------------
+  // OPEN EDIT MODAL
+  // ---------------------------
   function openEdit(ticket) {
     setEditingTicket(ticket);
-    setEditName(ticket.name);
-    setEditPrice(ticket.price.toString());
-    setEditQuantity(ticket.quantity_total.toString());
+    setEditName(ticket.name || "");
+    setEditPrice(ticket.price ? ticket.price.toString() : "");
+    setEditQuantityTotal(
+      ticket.quantity_total ? ticket.quantity_total.toString() : ""
+    );
     setShowEdit(true);
   }
 
+  // ---------------------------
+  // UPDATE TICKET (PATCH)
+  // ---------------------------
   async function updateTicket() {
     if (!editingTicket) return;
 
-    if (!editName || !editPrice || !editQuantity) {
+    if (!editName || !editPrice || !editQuantityTotal) {
       Alert.alert("Missing Fields", "Please fill all fields.");
       return;
     }
@@ -108,10 +127,12 @@ export default function OrganizerTicketsScreen({ navigation }) {
       const payload = {
         name: editName,
         price: editPrice,
-        quantity_total: parseInt(editQuantity),
+        quantity_total: parseInt(editQuantityTotal),
       };
 
-      // ✅ correct update endpoint
+      console.log("📌 Updating ticket payload:", payload);
+
+      // ✅ correct endpoint
       const res = await apiFetch(`/api/tickets/${editingTicket.id}/`, {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -120,8 +141,21 @@ export default function OrganizerTicketsScreen({ navigation }) {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Update Ticket Error:", data);
-        Alert.alert("Error", data?.detail || "Failed to update ticket.");
+        console.log("❌ Update Ticket API Error:", data);
+
+        let errorMessage = "Failed to update ticket.";
+
+        if (data?.detail) errorMessage = data.detail;
+
+        // serializer validation errors
+        if (typeof data === "object") {
+          const firstKey = Object.keys(data)[0];
+          if (firstKey && data[firstKey]) {
+            errorMessage = `${firstKey}: ${data[firstKey]}`;
+          }
+        }
+
+        Alert.alert("Error", errorMessage);
         return;
       }
 
@@ -131,11 +165,14 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
       if (selectedEvent) fetchTickets(selectedEvent.id);
     } catch (error) {
-      console.log("❌ Update Ticket Failed:", error);
+      console.log("❌ Update Ticket Crash:", error);
       Alert.alert("Error", "Failed to update ticket.");
     }
   }
 
+  // ---------------------------
+  // DELETE TICKET
+  // ---------------------------
   async function deleteTicket(ticketId) {
     Alert.alert("Delete Ticket", "Are you sure you want to delete this ticket?", [
       { text: "Cancel", style: "cancel" },
@@ -148,10 +185,11 @@ export default function OrganizerTicketsScreen({ navigation }) {
               method: "DELETE",
             });
 
+            // some APIs return 204 No Content (empty body)
             if (!res.ok) {
               const data = await safeJson(res);
-              console.log("❌ Delete Ticket Error:", data);
-              Alert.alert("Error", "Failed to delete ticket.");
+              console.log("❌ Delete Ticket API Error:", data);
+              Alert.alert("Error", data?.detail || "Failed to delete ticket.");
               return;
             }
 
@@ -159,7 +197,7 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
             if (selectedEvent) fetchTickets(selectedEvent.id);
           } catch (error) {
-            console.log("❌ Delete Ticket Failed:", error);
+            console.log("❌ Delete Ticket Crash:", error);
             Alert.alert("Error", "Failed to delete ticket.");
           }
         },
@@ -167,6 +205,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
     ]);
   }
 
+  // ---------------------------
+  // UI
+  // ---------------------------
   return (
     <View style={styles.container}>
       {/* HEADER */}
@@ -177,32 +218,43 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
         <Text style={styles.headerTitle}>Organizer Tickets</Text>
 
-        <Pressable style={styles.plusBtn} onPress={() => Alert.alert("Later", "Add Ticket feature next")}>
+        <Pressable
+          style={styles.plusBtn}
+          onPress={() => Alert.alert("Coming soon", "Add Ticket feature next")}
+        >
           <Text style={styles.plusText}>+</Text>
         </Pressable>
       </View>
 
-      {/* EVENT SELECT */}
-      <Pressable style={styles.eventSelectBox} onPress={() => setShowEventSelect(true)}>
+      {/* SELECT EVENT */}
+      <Pressable
+        style={styles.eventSelectBox}
+        onPress={() => setShowEventSelect(true)}
+      >
         <Text style={styles.eventSelectText}>
           Selected Event:{" "}
-          <Text style={{ color: "#7CFF00", fontWeight: "bold" }}>
+          <Text style={styles.selectedEventName}>
             {selectedEvent ? selectedEvent.title : "None"}
           </Text>
         </Text>
+
         <Text style={styles.dropdownIcon}>▼</Text>
       </Pressable>
 
-      {/* LOADING */}
+      {/* BODY */}
       {loading ? (
-        <ActivityIndicator size="large" color="#7CFF00" style={{ marginTop: 30 }} />
+        <ActivityIndicator
+          size="large"
+          color="#7CFF00"
+          style={{ marginTop: 40 }}
+        />
       ) : tickets.length === 0 ? (
         <Text style={styles.empty}>No ticket types found.</Text>
       ) : (
         <FlatList
           data={tickets}
           keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 50 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.ticketName}>{item.name}</Text>
@@ -213,18 +265,24 @@ export default function OrganizerTicketsScreen({ navigation }) {
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={styles.label}>Total:</Text>
+                <Text style={styles.label}>Quantity Total:</Text>
                 <Text style={styles.value}>{item.quantity_total}</Text>
               </View>
 
+              {/* ✅ QUANTITY SOLD */}
               <View style={styles.infoRow}>
-                <Text style={styles.label}>Sold:</Text>
-                <Text style={[styles.value, { color: "#FF3B30" }]}>{item.quantity_sold}</Text>
+                <Text style={styles.label}>Quantity Sold:</Text>
+                <Text style={[styles.value, { color: "#FF3B30" }]}>
+                  {item.quantity_sold}
+                </Text>
               </View>
 
+              {/* ✅ AVAILABLE */}
               <View style={styles.infoRow}>
                 <Text style={styles.label}>Available:</Text>
-                <Text style={[styles.value, { color: "#7CFF00" }]}>{item.available}</Text>
+                <Text style={[styles.value, { color: "#7CFF00" }]}>
+                  {item.available}
+                </Text>
               </View>
 
               <View style={styles.btnRow}>
@@ -232,7 +290,10 @@ export default function OrganizerTicketsScreen({ navigation }) {
                   <Text style={styles.btnText}>Edit</Text>
                 </Pressable>
 
-                <Pressable style={styles.deleteBtn} onPress={() => deleteTicket(item.id)}>
+                <Pressable
+                  style={styles.deleteBtn}
+                  onPress={() => deleteTicket(item.id)}
+                >
                   <Text style={styles.btnText}>Delete</Text>
                 </Pressable>
               </View>
@@ -254,7 +315,7 @@ export default function OrganizerTicketsScreen({ navigation }) {
                 <TouchableOpacity
                   style={[
                     styles.eventItem,
-                    selectedEvent?.id === item.id && { borderColor: "#7CFF00" },
+                    selectedEvent?.id === item.id && styles.activeEvent,
                   ]}
                   onPress={() => {
                     setSelectedEvent(item);
@@ -266,7 +327,10 @@ export default function OrganizerTicketsScreen({ navigation }) {
               )}
             />
 
-            <Pressable style={styles.cancelBtn} onPress={() => setShowEventSelect(false)}>
+            <Pressable
+              style={styles.cancelBtn}
+              onPress={() => setShowEventSelect(false)}
+            >
               <Text style={styles.cancelText}>Close</Text>
             </Pressable>
           </View>
@@ -275,26 +339,39 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
       {/* EDIT MODAL */}
       <Modal visible={showEdit} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <View style={styles.editBox}>
             <Text style={styles.modalTitle}>Edit Ticket</Text>
 
             <Text style={styles.formLabel}>Ticket Name</Text>
-            <TextInput style={styles.input} value={editName} onChangeText={setEditName} />
+            <TextInput
+              style={styles.input}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Ticket Name"
+              placeholderTextColor="#666"
+            />
 
             <Text style={styles.formLabel}>Price</Text>
             <TextInput
               style={styles.input}
               value={editPrice}
               onChangeText={setEditPrice}
+              placeholder="Price"
+              placeholderTextColor="#666"
               keyboardType="numeric"
             />
 
             <Text style={styles.formLabel}>Quantity Total</Text>
             <TextInput
               style={styles.input}
-              value={editQuantity}
-              onChangeText={setEditQuantity}
+              value={editQuantityTotal}
+              onChangeText={setEditQuantityTotal}
+              placeholder="Quantity Total"
+              placeholderTextColor="#666"
               keyboardType="numeric"
             />
 
@@ -306,10 +383,10 @@ export default function OrganizerTicketsScreen({ navigation }) {
               style={[styles.saveBtn, { backgroundColor: "#333" }]}
               onPress={() => setShowEdit(false)}
             >
-              <Text style={styles.saveText}>Cancel</Text>
+              <Text style={[styles.saveText, { color: "#fff" }]}>Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -322,8 +399,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 45, // ✅ header moved down
-    paddingBottom: 20,
+    paddingTop: 45,
+    paddingBottom: 18,
   },
 
   backBtn: {
@@ -365,6 +442,12 @@ const styles = StyleSheet.create({
   },
 
   eventSelectText: { color: "#aaa", fontSize: 14 },
+
+  selectedEventName: {
+    color: "#7CFF00",
+    fontWeight: "bold",
+  },
+
   dropdownIcon: { color: "#7CFF00", fontSize: 14, fontWeight: "bold" },
 
   empty: { color: "#888", textAlign: "center", marginTop: 50, fontSize: 15 },
@@ -381,7 +464,9 @@ const styles = StyleSheet.create({
   ticketName: { color: "#fff", fontSize: 18, fontWeight: "bold", marginBottom: 12 },
 
   infoRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+
   label: { color: "#666", fontSize: 14 },
+
   value: { color: "#fff", fontSize: 14, fontWeight: "bold" },
 
   btnRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
@@ -442,6 +527,10 @@ const styles = StyleSheet.create({
     borderColor: "#222",
     marginBottom: 10,
     backgroundColor: "#000",
+  },
+
+  activeEvent: {
+    borderColor: "#7CFF00",
   },
 
   eventItemText: { color: "#fff", fontWeight: "bold" },
