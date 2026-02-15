@@ -7,8 +7,8 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
-  Modal,
   TextInput,
+  Modal,
   ScrollView,
 } from "react-native";
 
@@ -21,32 +21,27 @@ export default function OrganizerTicketsScreen({ navigation }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   const [tickets, setTickets] = useState([]);
+  const [search, setSearch] = useState("");
 
-  const [showSelectEvent, setShowSelectEvent] = useState(false);
+  // modals
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [showView, setShowView] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
+  // form states
+  const [ticketName, setTicketName] = useState("");
+  const [ticketPrice, setTicketPrice] = useState("");
+  const [ticketQuantity, setTicketQuantity] = useState("");
 
-  const [selectedTicket, setSelectedTicket] = useState(null);
-
-  // Create form
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [quantityTotal, setQuantityTotal] = useState("");
-
-  // Edit form
-  const [editName, setEditName] = useState("");
-  const [editPrice, setEditPrice] = useState("");
-  const [editQuantityTotal, setEditQuantityTotal] = useState("");
-
-  const [creating, setCreating] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [editingTicket, setEditingTicket] = useState(null);
 
   useEffect(() => {
     fetchEvents();
   }, []);
 
+  // ----------------------------
+  // FETCH EVENTS
+  // ----------------------------
   async function fetchEvents() {
     try {
       setLoading(true);
@@ -55,8 +50,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Events Error:", data);
-        throw new Error("Failed to load events");
+        console.log("❌ Events API Error:", data);
+        Alert.alert("Error", "Failed to load events.");
+        return;
       }
 
       setEvents(data);
@@ -65,6 +61,7 @@ export default function OrganizerTicketsScreen({ navigation }) {
         setSelectedEvent(data[0]);
         fetchTickets(data[0].id);
       } else {
+        setSelectedEvent(null);
         setTickets([]);
       }
     } catch (error) {
@@ -75,6 +72,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
     }
   }
 
+  // ----------------------------
+  // FETCH TICKETS
+  // ----------------------------
   async function fetchTickets(eventId) {
     try {
       setLoading(true);
@@ -83,8 +83,9 @@ export default function OrganizerTicketsScreen({ navigation }) {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Tickets Error:", data);
-        throw new Error("Failed to load tickets");
+        console.log("❌ Tickets API Error:", data);
+        Alert.alert("Error", "Failed to load tickets.");
+        return;
       }
 
       setTickets(data);
@@ -96,48 +97,40 @@ export default function OrganizerTicketsScreen({ navigation }) {
     }
   }
 
-  function resetCreateForm() {
-    setName("");
-    setPrice("");
-    setQuantityTotal("");
+  // ----------------------------
+  // RESET FORM
+  // ----------------------------
+  function resetForm() {
+    setTicketName("");
+    setTicketPrice("");
+    setTicketQuantity("");
+    setEditingTicket(null);
   }
 
-  function openView(ticket) {
-    setSelectedTicket(ticket);
-    setShowView(true);
-  }
-
-  function openEdit(ticket) {
-    setSelectedTicket(ticket);
-
-    setEditName(ticket.name);
-    setEditPrice(ticket.price.toString());
-    setEditQuantityTotal(ticket.quantity_total.toString());
-
-    setShowEdit(true);
-  }
-
-  async function createTicketType() {
+  // ----------------------------
+  // CREATE TICKET
+  // ----------------------------
+  async function createTicket() {
     if (!selectedEvent) {
-      Alert.alert("Select Event", "Please select an event first.");
+      Alert.alert("Error", "Select an event first.");
       return;
     }
 
-    if (!name || !price || !quantityTotal) {
-      Alert.alert("Missing Fields", "Fill Name, Price and Quantity.");
+    if (!ticketName || !ticketPrice || !ticketQuantity) {
+      Alert.alert("Missing Fields", "Fill name, price and quantity.");
       return;
     }
 
     try {
-      setCreating(true);
+      setLoading(true);
 
       const res = await apiFetch("/api/tickets/", {
         method: "POST",
         body: JSON.stringify({
           event: selectedEvent.id,
-          name: name,
-          price: price,
-          quantity_total: quantityTotal,
+          name: ticketName,
+          price: ticketPrice,
+          quantity_total: ticketQuantity,
         }),
       });
 
@@ -145,39 +138,54 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
       if (!res.ok) {
         console.log("❌ Create Ticket Error:", data);
-        Alert.alert("Error", data?.detail || "Failed to create ticket type.");
+        Alert.alert("Error", data?.detail || "Failed to create ticket.");
         return;
       }
 
-      Alert.alert("Success", "Ticket type created!");
-      setShowCreate(false);
-      resetCreateForm();
+      Alert.alert("Success", "Ticket type created successfully!");
+      setShowCreateModal(false);
+      resetForm();
       fetchTickets(selectedEvent.id);
     } catch (error) {
       console.log("❌ Create Ticket Failed:", error);
-      Alert.alert("Error", "Failed to create ticket type.");
+      Alert.alert("Error", "Failed to create ticket.");
     } finally {
-      setCreating(false);
+      setLoading(false);
     }
   }
 
-  async function updateTicketType() {
-    if (!selectedTicket) return;
+  // ----------------------------
+  // OPEN EDIT MODAL
+  // ----------------------------
+  function openEdit(ticket) {
+    setEditingTicket(ticket);
+    setTicketName(ticket.name);
+    setTicketPrice(ticket.price.toString());
+    setTicketQuantity(ticket.quantity_total.toString());
+    setShowEditModal(true);
+  }
 
-    if (!editName || !editPrice || !editQuantityTotal) {
-      Alert.alert("Missing Fields", "Fill all fields.");
+  // ----------------------------
+  // UPDATE TICKET
+  // ----------------------------
+  async function updateTicket() {
+    if (!editingTicket) return;
+
+    if (!ticketName || !ticketPrice || !ticketQuantity) {
+      Alert.alert("Missing Fields", "Fill name, price and quantity.");
       return;
     }
 
     try {
-      setUpdating(true);
+      setLoading(true);
 
-      const res = await apiFetch(`/api/tickets/${selectedTicket.id}/`, {
-        method: "PATCH",
+      const res = await apiFetch(`/api/tickets/${editingTicket.id}/`, {
+        method: "PUT",
         body: JSON.stringify({
-          name: editName,
-          price: editPrice,
-          quantity_total: editQuantityTotal,
+          event: selectedEvent.id,
+          name: ticketName,
+          price: ticketPrice,
+          quantity_total: ticketQuantity,
         }),
       });
 
@@ -185,29 +193,35 @@ export default function OrganizerTicketsScreen({ navigation }) {
 
       if (!res.ok) {
         console.log("❌ Update Ticket Error:", data);
-        Alert.alert("Error", data?.detail || "Failed to update ticket type.");
+        Alert.alert("Error", data?.detail || "Failed to update ticket.");
         return;
       }
 
       Alert.alert("Success", "Ticket updated successfully!");
-      setShowEdit(false);
+      setShowEditModal(false);
+      resetForm();
       fetchTickets(selectedEvent.id);
     } catch (error) {
       console.log("❌ Update Ticket Failed:", error);
-      Alert.alert("Error", "Failed to update ticket type.");
+      Alert.alert("Error", "Failed to update ticket.");
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
   }
 
+  // ----------------------------
+  // DELETE TICKET
+  // ----------------------------
   async function deleteTicket(ticketId) {
-    Alert.alert("Delete Ticket Type", "Are you sure you want to delete this?", [
+    Alert.alert("Delete Ticket", "Are you sure you want to delete this ticket?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           try {
+            setLoading(true);
+
             const res = await apiFetch(`/api/tickets/${ticketId}/`, {
               method: "DELETE",
             });
@@ -215,63 +229,29 @@ export default function OrganizerTicketsScreen({ navigation }) {
             if (!res.ok) {
               const data = await safeJson(res);
               console.log("❌ Delete Ticket Error:", data);
-              Alert.alert("Error", "Failed to delete ticket type.");
+              Alert.alert("Error", "Failed to delete ticket.");
               return;
             }
 
-            Alert.alert("Deleted", "Ticket type deleted successfully!");
+            Alert.alert("Deleted", "Ticket deleted successfully!");
             fetchTickets(selectedEvent.id);
           } catch (error) {
             console.log("❌ Delete Ticket Failed:", error);
-            Alert.alert("Error", "Failed to delete ticket type.");
+            Alert.alert("Error", "Failed to delete ticket.");
+          } finally {
+            setLoading(false);
           }
         },
       },
     ]);
   }
 
-  function TicketCard({ item }) {
-    const total = Number(item.quantity_total);
-    const sold = Number(item.quantity_sold);
-    const available = Number(item.available);
-
-    const percent = total > 0 ? (sold / total) * 100 : 0;
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.rowTop}>
-          <Text style={styles.ticketName}>{item.name}</Text>
-          <Text style={styles.price}>SSP {item.price}</Text>
-        </View>
-
-        <Text style={styles.details}>
-          Total: {total} | Sold: {sold} | Available: {available}
-        </Text>
-
-        {/* Progress Bar */}
-        <View style={styles.progressBg}>
-          <View style={[styles.progressFill, { width: `${percent}%` }]} />
-        </View>
-
-        <View style={styles.actionRow}>
-          <Pressable style={styles.viewBtn} onPress={() => openView(item)}>
-            <Text style={styles.btnTextDark}>View</Text>
-          </Pressable>
-
-          <Pressable style={styles.editBtn} onPress={() => openEdit(item)}>
-            <Text style={styles.btnTextDark}>Edit</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.deleteBtn}
-            onPress={() => deleteTicket(item.id)}
-          >
-            <Text style={styles.btnTextLight}>Delete</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  // ----------------------------
+  // SEARCH FILTER
+  // ----------------------------
+  const filteredTickets = tickets.filter((ticket) =>
+    ticket.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
@@ -281,224 +261,231 @@ export default function OrganizerTicketsScreen({ navigation }) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
 
-        <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={styles.title}>Organizer Tickets</Text>
+        <Text style={styles.headerTitle}>Organizer Tickets</Text>
 
-          <Pressable
-            style={styles.eventSelectBtn}
-            onPress={() => setShowSelectEvent(true)}
-          >
-            <Text style={styles.eventSelectText}>
-              {selectedEvent ? selectedEvent.title : "Select Event"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Pressable style={styles.addBtn} onPress={() => setShowCreate(true)}>
+        <Pressable
+          style={styles.addBtn}
+          onPress={() => setShowCreateModal(true)}
+        >
           <Text style={styles.addText}>+</Text>
         </Pressable>
       </View>
 
-      {/* BODY */}
+      {/* SELECT EVENT BUTTON */}
+      <Pressable
+        style={styles.selectEventBtn}
+        onPress={() => setShowEventModal(true)}
+      >
+        <Text style={styles.selectEventLabel}>Selected Event:</Text>
+
+        <Text style={styles.selectEventName}>
+          {selectedEvent ? selectedEvent.title : "No Event Selected"}
+        </Text>
+
+        <Text style={styles.selectEventArrow}>▼</Text>
+      </Pressable>
+
+      {/* SEARCH */}
+      <View style={styles.searchBox}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search ticket types..."
+          placeholderTextColor="#666"
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
+
+      {/* LOADING */}
       {loading ? (
-        <ActivityIndicator size="large" color="#7CFF00" />
-      ) : tickets.length === 0 ? (
-        <Text style={styles.empty}>No ticket types found.</Text>
+        <ActivityIndicator size="large" color="#7CFF00" style={{ marginTop: 40 }} />
+      ) : selectedEvent === null ? (
+        <Text style={styles.emptyText}>No events found. Create an event first.</Text>
+      ) : filteredTickets.length === 0 ? (
+        <Text style={styles.emptyText}>No ticket types found.</Text>
       ) : (
         <FlatList
-          data={tickets}
+          data={filteredTickets}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => <TicketCard item={item} />}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <View style={styles.ticketCard}>
+              <Text style={styles.ticketName}>{item.name}</Text>
+
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Price:</Text>
+                <Text style={styles.ticketValue}>SSP {item.price}</Text>
+              </View>
+
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Total:</Text>
+                <Text style={styles.ticketValue}>{item.quantity_total}</Text>
+              </View>
+
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Sold:</Text>
+                <Text style={styles.ticketSold}>{item.quantity_sold}</Text>
+              </View>
+
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Available:</Text>
+                <Text style={styles.ticketAvailable}>{item.available}</Text>
+              </View>
+
+              <View style={styles.actionRow}>
+                <Pressable style={styles.editBtn} onPress={() => openEdit(item)}>
+                  <Text style={styles.editText}>Edit</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.deleteBtn}
+                  onPress={() => deleteTicket(item.id)}
+                >
+                  <Text style={styles.deleteText}>Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         />
       )}
 
-      {/* SELECT EVENT MODAL */}
-      <Modal visible={showSelectEvent} animationType="slide" transparent>
+      {/* EVENT SELECT MODAL */}
+      <Modal visible={showEventModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Select Event</Text>
 
-            <ScrollView>
-              {events.map((ev) => (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {events.map((event) => (
                 <Pressable
-                  key={ev.id}
+                  key={event.id}
                   style={[
-                    styles.eventItem,
-                    selectedEvent?.id === ev.id && styles.eventItemActive,
+                    styles.eventOption,
+                    selectedEvent?.id === event.id && styles.eventActive,
                   ]}
                   onPress={() => {
-                    setSelectedEvent(ev);
-                    setShowSelectEvent(false);
-                    fetchTickets(ev.id);
+                    setSelectedEvent(event);
+                    setShowEventModal(false);
+                    fetchTickets(event.id);
                   }}
                 >
-                  <Text style={styles.eventItemTitle}>{ev.title}</Text>
-                  <Text style={styles.eventItemLocation}>{ev.location}</Text>
+                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  <Text style={styles.eventLocation}>{event.location}</Text>
                 </Pressable>
               ))}
             </ScrollView>
 
             <Pressable
-              style={[styles.modalBtn, { backgroundColor: "#333" }]}
-              onPress={() => setShowSelectEvent(false)}
+              style={styles.closeBtn}
+              onPress={() => setShowEventModal(false)}
             >
-              <Text style={styles.modalBtnText}>Close</Text>
+              <Text style={styles.closeText}>Close</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
       {/* CREATE MODAL */}
-      <Modal visible={showCreate} animationType="slide" transparent>
+      <Modal visible={showCreateModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>Add Ticket Type</Text>
+          <View style={styles.formModalBox}>
+            <Text style={styles.modalTitle}>Add Ticket Type</Text>
 
-              <Text style={styles.label}>Event:</Text>
-              <Text style={styles.selectedEventText}>
-                {selectedEvent ? selectedEvent.title : "No event selected"}
-              </Text>
+            <Text style={styles.label}>Ticket Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Regular / VIP / VVIP"
+              placeholderTextColor="#666"
+              value={ticketName}
+              onChangeText={setTicketName}
+            />
 
-              <Text style={styles.label}>Name:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Regular / VIP / VVIP"
-                placeholderTextColor="#777"
-                value={name}
-                onChangeText={setName}
-              />
+            <Text style={styles.label}>Price</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="15000"
+              placeholderTextColor="#666"
+              value={ticketPrice}
+              onChangeText={setTicketPrice}
+              keyboardType="numeric"
+            />
 
-              <Text style={styles.label}>Price:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="15000"
-                placeholderTextColor="#777"
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="numeric"
-              />
+            <Text style={styles.label}>Quantity Total</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="100"
+              placeholderTextColor="#666"
+              value={ticketQuantity}
+              onChangeText={setTicketQuantity}
+              keyboardType="numeric"
+            />
 
-              <Text style={styles.label}>Quantity Total:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="100"
-                placeholderTextColor="#777"
-                value={quantityTotal}
-                onChangeText={setQuantityTotal}
-                keyboardType="numeric"
-              />
-
-              <Pressable
-                style={[styles.modalBtn, creating && { opacity: 0.6 }]}
-                onPress={createTicketType}
-                disabled={creating}
-              >
-                <Text style={styles.modalBtnText}>
-                  {creating ? "Creating..." : "Create Ticket Type"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.modalBtn, { backgroundColor: "#333" }]}
-                onPress={() => {
-                  setShowCreate(false);
-                  resetCreateForm();
-                }}
-              >
-                <Text style={styles.modalBtnText}>Cancel</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* VIEW MODAL */}
-      <Modal visible={showView} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.viewModalBox}>
-            <Text style={styles.modalTitle}>Ticket Details</Text>
-
-            {selectedTicket && (
-              <View style={styles.viewDetails}>
-                <Text style={styles.viewLabel}>Name:</Text>
-                <Text style={styles.viewValue}>{selectedTicket.name}</Text>
-
-                <Text style={styles.viewLabel}>Price:</Text>
-                <Text style={styles.viewValue}>SSP {selectedTicket.price}</Text>
-
-                <Text style={styles.viewLabel}>Quantity Total:</Text>
-                <Text style={styles.viewValue}>
-                  {selectedTicket.quantity_total}
-                </Text>
-
-                <Text style={styles.viewLabel}>Quantity Sold:</Text>
-                <Text style={styles.viewValue}>
-                  {selectedTicket.quantity_sold}
-                </Text>
-
-                <Text style={styles.viewLabel}>Available:</Text>
-                <Text style={styles.viewValue}>{selectedTicket.available}</Text>
-              </View>
-            )}
+            <Pressable style={styles.saveBtn} onPress={createTicket}>
+              <Text style={styles.saveText}>Create Ticket</Text>
+            </Pressable>
 
             <Pressable
-              style={[styles.modalBtn, { backgroundColor: "#333" }]}
-              onPress={() => setShowView(false)}
+              style={styles.cancelBtn}
+              onPress={() => {
+                setShowCreateModal(false);
+                resetForm();
+              }}
             >
-              <Text style={styles.modalBtnText}>Close</Text>
+              <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
       {/* EDIT MODAL */}
-      <Modal visible={showEdit} animationType="slide" transparent>
+      <Modal visible={showEditModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>Edit Ticket Type</Text>
+          <View style={styles.formModalBox}>
+            <Text style={styles.modalTitle}>Edit Ticket Type</Text>
 
-              <Text style={styles.label}>Name:</Text>
-              <TextInput
-                style={styles.input}
-                value={editName}
-                onChangeText={setEditName}
-              />
+            <Text style={styles.label}>Ticket Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Regular / VIP / VVIP"
+              placeholderTextColor="#666"
+              value={ticketName}
+              onChangeText={setTicketName}
+            />
 
-              <Text style={styles.label}>Price:</Text>
-              <TextInput
-                style={styles.input}
-                value={editPrice}
-                onChangeText={setEditPrice}
-                keyboardType="numeric"
-              />
+            <Text style={styles.label}>Price</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="15000"
+              placeholderTextColor="#666"
+              value={ticketPrice}
+              onChangeText={setTicketPrice}
+              keyboardType="numeric"
+            />
 
-              <Text style={styles.label}>Quantity Total:</Text>
-              <TextInput
-                style={styles.input}
-                value={editQuantityTotal}
-                onChangeText={setEditQuantityTotal}
-                keyboardType="numeric"
-              />
+            <Text style={styles.label}>Quantity Total</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="100"
+              placeholderTextColor="#666"
+              value={ticketQuantity}
+              onChangeText={setTicketQuantity}
+              keyboardType="numeric"
+            />
 
-              <Pressable
-                style={[styles.modalBtn, updating && { opacity: 0.6 }]}
-                onPress={updateTicketType}
-                disabled={updating}
-              >
-                <Text style={styles.modalBtnText}>
-                  {updating ? "Updating..." : "Save Changes"}
-                </Text>
-              </Pressable>
+            <Pressable style={styles.saveBtn} onPress={updateTicket}>
+              <Text style={styles.saveText}>Save Changes</Text>
+            </Pressable>
 
-              <Pressable
-                style={[styles.modalBtn, { backgroundColor: "#333" }]}
-                onPress={() => setShowEdit(false)}
-              >
-                <Text style={styles.modalBtnText}>Cancel</Text>
-              </Pressable>
-            </ScrollView>
+            <Pressable
+              style={styles.cancelBtn}
+              onPress={() => {
+                setShowEditModal(false);
+                resetForm();
+              }}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -507,13 +494,18 @@ export default function OrganizerTicketsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000", padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+    padding: 18,
+  },
 
+  /* HEADER */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 18,
   },
 
   backBtn: {
@@ -527,25 +519,16 @@ const styles = StyleSheet.create({
     borderColor: "#222",
   },
 
-  backText: { color: "#7CFF00", fontSize: 20 },
-
-  title: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-
-  eventSelectBtn: {
-    marginTop: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "#111",
-    borderWidth: 1,
-    borderColor: "#222",
+  backText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
   },
 
-  eventSelectText: {
-    color: "#7CFF00",
-    fontSize: 12,
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
     fontWeight: "bold",
-    textAlign: "center",
   },
 
   addBtn: {
@@ -557,193 +540,274 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  addText: { color: "#000", fontSize: 26, fontWeight: "bold" },
+  addText: {
+    color: "#000",
+    fontSize: 28,
+    fontWeight: "bold",
+    marginTop: -3,
+  },
 
-  empty: { color: "#999", textAlign: "center", marginTop: 50 },
-
-  card: {
+  /* SELECT EVENT BUTTON */
+  selectEventBtn: {
     backgroundColor: "#111",
-    padding: 15,
-    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#222",
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+
+  selectEventLabel: {
+    color: "#888",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  selectEventName: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  selectEventArrow: {
+    color: "#7CFF00",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  /* SEARCH */
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#111",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#222",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 15,
+  },
+
+  searchIcon: {
+    color: "#666",
+    fontSize: 16,
+    marginRight: 8,
+  },
+
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+  },
+
+  /* EMPTY */
+  emptyText: {
+    color: "#777",
+    textAlign: "center",
+    marginTop: 80,
+    fontSize: 14,
+  },
+
+  /* CARD */
+  ticketCard: {
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
+    borderRadius: 18,
+    padding: 16,
     marginBottom: 12,
+  },
+
+  ticketName: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+
+  ticketRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+
+  ticketLabel: {
+    color: "#777",
+    fontSize: 13,
+  },
+
+  ticketValue: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+
+  ticketSold: {
+    color: "#FF3B30",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+
+  ticketAvailable: {
+    color: "#7CFF00",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+
+  /* ACTIONS */
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+
+  editBtn: {
+    flex: 1,
+    backgroundColor: "#7CFF00",
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    marginRight: 8,
+  },
+
+  editText: {
+    color: "#000",
+    fontWeight: "bold",
+  },
+
+  deleteBtn: {
+    flex: 1,
+    backgroundColor: "#FF3B30",
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    marginLeft: 8,
+  },
+
+  deleteText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
+  /* MODAL */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "flex-end",
+  },
+
+  modalBox: {
+    backgroundColor: "#111",
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 20,
+    maxHeight: "75%",
     borderWidth: 1,
     borderColor: "#222",
   },
 
-  rowTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  ticketName: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-
-  price: { color: "#7CFF00", fontWeight: "bold", fontSize: 14 },
-
-  details: { color: "#aaa", marginTop: 8, fontSize: 13 },
-
-  progressBg: {
-    height: 8,
-    backgroundColor: "#222",
-    borderRadius: 10,
-    marginTop: 10,
-    overflow: "hidden",
-  },
-
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#7CFF00",
-  },
-
-  actionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 15,
-  },
-
-  viewBtn: {
-    backgroundColor: "#7CFF00",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    flex: 1,
-    marginRight: 6,
-    alignItems: "center",
-  },
-
-  editBtn: {
-    backgroundColor: "#FFD60A",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    flex: 1,
-    marginRight: 6,
-    alignItems: "center",
-  },
-
-  deleteBtn: {
-    backgroundColor: "#FF3B30",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    flex: 1,
-    alignItems: "center",
-  },
-
-  btnTextDark: { color: "#000", fontWeight: "bold" },
-  btnTextLight: { color: "#fff", fontWeight: "bold" },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-
-  modalBox: {
-    width: "100%",
-    maxHeight: "90%",
+  formModalBox: {
     backgroundColor: "#111",
-    borderRadius: 20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#333",
-  },
-
-  viewModalBox: {
-    width: "100%",
-    backgroundColor: "#111",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "#222",
   },
 
   modalTitle: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 15,
     textAlign: "center",
+    marginBottom: 15,
   },
 
-  label: {
+  eventOption: {
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "#222",
+    padding: 15,
+    borderRadius: 18,
+    marginBottom: 10,
+  },
+
+  eventActive: {
+    borderColor: "#7CFF00",
+  },
+
+  eventTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  eventLocation: {
+    color: "#777",
+    marginTop: 4,
+    fontSize: 12,
+  },
+
+  closeBtn: {
+    backgroundColor: "#333",
+    padding: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  closeText: {
     color: "#fff",
     fontWeight: "bold",
-    marginTop: 12,
-    marginBottom: 5,
   },
 
-  selectedEventText: {
-    color: "#7CFF00",
+  /* FORM */
+  label: {
+    color: "#aaa",
+    marginBottom: 6,
+    marginTop: 10,
     fontWeight: "bold",
-    marginBottom: 5,
   },
 
   input: {
     backgroundColor: "#000",
     borderWidth: 1,
-    borderColor: "#333",
-    padding: 12,
-    borderRadius: 12,
+    borderColor: "#222",
+    padding: 14,
+    borderRadius: 16,
     color: "#fff",
   },
 
-  modalBtn: {
+  saveBtn: {
     backgroundColor: "#7CFF00",
-    padding: 14,
-    borderRadius: 15,
+    padding: 15,
+    borderRadius: 16,
     alignItems: "center",
-    marginTop: 15,
+    marginTop: 18,
   },
 
-  modalBtnText: {
-    fontWeight: "bold",
+  saveText: {
     color: "#000",
+    fontWeight: "bold",
     fontSize: 15,
   },
 
-  eventItem: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#000",
-    borderWidth: 1,
-    borderColor: "#222",
-    marginBottom: 10,
+  cancelBtn: {
+    backgroundColor: "#333",
+    padding: 15,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 12,
   },
 
-  eventItemActive: {
-    borderColor: "#7CFF00",
-  },
-
-  eventItemTitle: {
+  cancelText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 14,
-  },
-
-  eventItemLocation: {
-    color: "#aaa",
-    marginTop: 5,
-    fontSize: 12,
-  },
-
-  viewDetails: {
-    marginTop: 10,
-    marginBottom: 20,
-  },
-
-  viewLabel: {
-    color: "#aaa",
-    marginTop: 10,
-    fontSize: 12,
-  },
-
-  viewValue: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 15,
   },
 });
