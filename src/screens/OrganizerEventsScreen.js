@@ -29,11 +29,6 @@ export default function OrganizerEventsScreen({ navigation }) {
   // refresh
   const [refreshing, setRefreshing] = useState(false);
 
-  // pagination
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
   // create modal
   const [showCreate, setShowCreate] = useState(false);
 
@@ -65,7 +60,7 @@ export default function OrganizerEventsScreen({ navigation }) {
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    fetchEvents(1, true);
+    fetchEvents();
   }, []);
 
   function resetForm() {
@@ -80,8 +75,9 @@ export default function OrganizerEventsScreen({ navigation }) {
     setImageFile(null);
   }
 
+  // FIXED: no Z (Z forces UTC and can break time)
   function toISO(date, time) {
-    return `${date}T${time}:00Z`;
+    return `${date}T${time}:00`;
   }
 
   function formatDate(dateString) {
@@ -89,53 +85,32 @@ export default function OrganizerEventsScreen({ navigation }) {
     return new Date(dateString).toLocaleString();
   }
 
-  async function fetchEvents(pageNumber = 1, reset = false) {
+  async function fetchEvents() {
     try {
-      if (reset) {
-        setLoading(true);
-        setHasMore(true);
-      } else {
-        setLoadingMore(true);
-      }
+      setLoading(true);
 
-      const res = await apiFetch(`/api/events/?page=${pageNumber}`);
+      // FIXED: organizer endpoint
+      const res = await apiFetch("/api/events/organizer/");
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Events API Error:", data);
-        throw new Error("Failed to load events");
+        console.log("❌ Organizer Events API Error:", data);
+        Alert.alert("Error", data?.detail || "Failed to load organizer events.");
+        return;
       }
 
-      // if backend returns pagination results
-      let results = data;
-
-      if (data.results) {
-        results = data.results;
-        setHasMore(data.next !== null);
-      } else {
-        // if backend returns full list
-        setHasMore(false);
-      }
-
-      if (reset) {
-        setEvents(results);
-      } else {
-        setEvents((prev) => [...prev, ...results]);
-      }
-
-      setPage(pageNumber);
+      setEvents(data);
     } catch (error) {
-      console.log("❌ Fetch Events Error:", error);
-      Alert.alert("Error", "Failed to load events.");
+      console.log("❌ Fetch Organizer Events Error:", error);
+      Alert.alert("Error", "Failed to load organizer events.");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   }
 
   async function onRefresh() {
     setRefreshing(true);
-    await fetchEvents(1, true);
+    await fetchEvents();
     setRefreshing(false);
   }
 
@@ -176,12 +151,10 @@ export default function OrganizerEventsScreen({ navigation }) {
       setCreating(true);
 
       const formData = new FormData();
-
       formData.append("title", title);
       formData.append("description", description);
       formData.append("location", location);
       formData.append("category", category);
-
       formData.append("start_date", toISO(startDate, startTime));
       formData.append("end_date", toISO(endDate, endTime));
 
@@ -191,7 +164,8 @@ export default function OrganizerEventsScreen({ navigation }) {
         type: "image/jpeg",
       });
 
-      const res = await apiFetch("/api/events/", {
+      // ✅ FIXED ENDPOINT
+      const res = await apiFetch("/api/events/create/", {
         method: "POST",
         body: formData,
       });
@@ -207,7 +181,7 @@ export default function OrganizerEventsScreen({ navigation }) {
       Alert.alert("Success", "Event created successfully!");
       setShowCreate(false);
       resetForm();
-      fetchEvents(1, true);
+      fetchEvents();
     } catch (error) {
       console.log("❌ Create Event Failed:", error);
       Alert.alert("Error", "Failed to create event.");
@@ -258,12 +232,10 @@ export default function OrganizerEventsScreen({ navigation }) {
       setUpdating(true);
 
       const formData = new FormData();
-
       formData.append("title", title);
       formData.append("description", description);
       formData.append("location", location);
       formData.append("category", category);
-
       formData.append("start_date", toISO(startDate, startTime));
       formData.append("end_date", toISO(endDate, endTime));
 
@@ -275,6 +247,7 @@ export default function OrganizerEventsScreen({ navigation }) {
         });
       }
 
+      // ✅ FIXED ENDPOINT (matches backend)
       const res = await apiFetch(`/api/events/${editingEvent.id}/`, {
         method: "PUT",
         body: formData,
@@ -291,7 +264,7 @@ export default function OrganizerEventsScreen({ navigation }) {
       Alert.alert("Updated", "Event updated successfully!");
       setShowEdit(false);
       resetForm();
-      fetchEvents(1, true);
+      fetchEvents();
     } catch (error) {
       console.log("❌ Update Event Failed:", error);
       Alert.alert("Error", "Failed to update event.");
@@ -308,19 +281,21 @@ export default function OrganizerEventsScreen({ navigation }) {
         style: "destructive",
         onPress: async () => {
           try {
+            // ✅ FIXED ENDPOINT (matches backend)
             const res = await apiFetch(`/api/events/${eventId}/`, {
               method: "DELETE",
             });
 
+            const data = await safeJson(res);
+
             if (!res.ok) {
-              const data = await safeJson(res);
               console.log("❌ Delete Event Error:", data);
-              Alert.alert("Error", "Failed to delete event.");
+              Alert.alert("Error", data?.detail || "Failed to delete event.");
               return;
             }
 
             Alert.alert("Deleted", "Event deleted successfully!");
-            fetchEvents(1, true);
+            fetchEvents();
           } catch (error) {
             console.log("❌ Delete Event Failed:", error);
             Alert.alert("Error", "Failed to delete event.");
@@ -421,21 +396,6 @@ export default function OrganizerEventsScreen({ navigation }) {
               </View>
             </View>
           )}
-          ListFooterComponent={
-            hasMore ? (
-              <Pressable
-                style={styles.loadMoreBtn}
-                disabled={loadingMore}
-                onPress={() => fetchEvents(page + 1)}
-              >
-                <Text style={styles.loadMoreText}>
-                  {loadingMore ? "Loading..." : "Load More"}
-                </Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.endText}>No more events</Text>
-            )
-          }
         />
       )}
 
@@ -885,29 +845,6 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     color: "#fff",
     fontWeight: "bold",
-  },
-
-  loadMoreBtn: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    padding: 16,
-    borderRadius: 18,
-    marginTop: 10,
-    marginBottom: 30,
-    alignItems: "center",
-  },
-
-  loadMoreText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-
-  endText: {
-    color: "#666",
-    textAlign: "center",
-    marginTop: 18,
-    marginBottom: 30,
   },
 
   modalOverlay: {
