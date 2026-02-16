@@ -25,7 +25,7 @@
       "package": "com.sirheartevents.app",
       "permissions": ["INTERNET", "CAMERA"],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       }
     },
