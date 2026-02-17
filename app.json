@@ -5,36 +5,33 @@
     "scheme": "sirheart_events",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-
     "icon": "./assets/icon.png",
-
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "package": "com.sirheartevents.app",
-      "permissions": ["INTERNET", "CAMERA"]
-      }
+      "permissions": [
+        "INTERNET",
+        "CAMERA"
+      ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "extra": {
       "eas": {
         "projectId": "58dcd0dd-32d4-47f1-b87f-33c755344f33"
       }
     }
   }
-
+}
