@@ -18,7 +18,9 @@ export default function RegisterScreen({ navigation }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
 
   const [role, setRole] = useState("customer");
 
@@ -28,7 +30,9 @@ export default function RegisterScreen({ navigation }) {
 
   const [loading, setLoading] = useState(false);
 
-  // ✅ Pick ID Document
+  // ==========================
+  // PICK ID DOCUMENT
+  // ==========================
   const pickIdDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -47,15 +51,22 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
-  // ✅ Register
+  // ==========================
+  // REGISTER
+  // ==========================
   const handleRegister = async () => {
-    if (!fullName || !email || !password) {
+    if (!fullName || !email || !password || !password2) {
       Alert.alert("Error", "Full Name, Email and Password are required");
       return;
     }
 
     if (!phone) {
       Alert.alert("Error", "Phone number is required");
+      return;
+    }
+
+    if (password !== password2) {
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
@@ -77,8 +88,10 @@ export default function RegisterScreen({ navigation }) {
       formData.append("full_name", fullName);
       formData.append("email", email);
       formData.append("phone", phone);
+
       formData.append("password", password);
-      formData.append("password2", password);
+      formData.append("password2", password2);
+
       formData.append("role", role);
 
       if (role === "organizer") {
@@ -99,7 +112,7 @@ export default function RegisterScreen({ navigation }) {
 
       const data = await safeJson(res);
 
-      // ✅ If backend returns invalid json
+      // ❌ Backend returned invalid json
       if (data?.raw) {
         console.log("❌ REGISTER RESPONSE NOT JSON:", data.raw);
         Alert.alert("Server Error", "Backend returned invalid response");
@@ -133,12 +146,13 @@ export default function RegisterScreen({ navigation }) {
       if (role === "organizer") {
         Alert.alert(
           "Request Submitted ✅",
-          "Thank you! We are reviewing your organizer request.\n\nCome back and login after approval in 1 to 3 days."
+          "Thank you! We are reviewing your organizer request.\n\nPlease verify your email OTP first."
         );
 
+        // ✅ go to OTP verify screen
         navigation.reset({
           index: 0,
-          routes: [{ name: "Login" }],
+          routes: [{ name: "VerifyOTP", params: { email } }],
         });
 
         setLoading(false);
@@ -146,11 +160,15 @@ export default function RegisterScreen({ navigation }) {
       }
 
       // ✅ Customer registration
-      Alert.alert("Success ✅", "Customer account created successfully!");
+      Alert.alert(
+        "Account Created ✅",
+        "OTP has been sent to your email. Please verify your email."
+      );
 
+      // ✅ go to OTP verify screen
       navigation.reset({
         index: 0,
-        routes: [{ name: "Login" }],
+        routes: [{ name: "VerifyOTP", params: { email } }],
       });
     } catch (err) {
       console.log("❌ Register error:", err);
@@ -228,6 +246,15 @@ export default function RegisterScreen({ navigation }) {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+      />
+
+      <TextInput
+        placeholder="Confirm Password"
+        placeholderTextColor="#666"
+        style={styles.input}
+        secureTextEntry
+        value={password2}
+        onChangeText={setPassword2}
       />
 
       {/* ORGANIZER EXTRA FIELDS */}

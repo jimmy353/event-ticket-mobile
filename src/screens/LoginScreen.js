@@ -7,6 +7,7 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,6 +22,11 @@ export default function LoginScreen({ navigation }) {
 
   const [role, setRole] = useState("customer");
   const [loading, setLoading] = useState(false);
+
+  // Forgot password modal
+  const [forgotVisible, setForgotVisible] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const { response, promptAsync } = useGoogleAuth();
 
@@ -37,7 +43,9 @@ export default function LoginScreen({ navigation }) {
     }
   }, [response]);
 
-  // ✅ LOGIN
+  // ==========================
+  // LOGIN
+  // ==========================
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Email and password are required");
@@ -100,6 +108,19 @@ export default function LoginScreen({ navigation }) {
           return;
         }
 
+        if (data.status === "not_verified") {
+          Alert.alert(
+            "Login Failed",
+            "Email not verified. Please verify your email OTP first."
+          );
+
+          // ✅ navigate to OTP verify screen
+          navigation.navigate("VerifyOTP", { email });
+
+          setLoading(false);
+          return;
+        }
+
         Alert.alert("Login Failed", data.detail || data.error || "Invalid credentials");
         setLoading(false);
         return;
@@ -129,7 +150,58 @@ export default function LoginScreen({ navigation }) {
     setLoading(false);
   };
 
-  // ✅ Google Login
+  // ==========================
+  // FORGOT PASSWORD
+  // ==========================
+  const handleForgotPassword = async () => {
+    if (!forgotEmail) {
+      Alert.alert("Error", "Please enter your email");
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
+      const res = await apiFetch("/api/auth/forgot-password/", {
+        method: "POST",
+        body: JSON.stringify({
+          email: forgotEmail,
+        }),
+      });
+
+      const data = await safeJson(res);
+
+      if (data?.raw) {
+        console.log("❌ FORGOT PASSWORD RESPONSE NOT JSON:", data.raw);
+        Alert.alert("Server Error", "Backend returned invalid response");
+        setForgotLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        Alert.alert("Failed", data.detail || data.error || "Try again");
+        setForgotLoading(false);
+        return;
+      }
+
+      Alert.alert("OTP Sent ✅", "Password reset OTP has been sent to your email.");
+
+      setForgotVisible(false);
+
+      // ✅ go to reset password screen
+      navigation.navigate("ResetPassword", { email: forgotEmail });
+
+      setForgotEmail("");
+    } catch (err) {
+      Alert.alert("Error", err.message || "Something went wrong");
+    }
+
+    setForgotLoading(false);
+  };
+
+  // ==========================
+  // Google Login
+  // ==========================
   const googleLogin = async (accessToken) => {
     setLoading(true);
 
@@ -249,6 +321,16 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
+      {/* FORGOT PASSWORD */}
+      <Pressable
+        onPress={() => {
+          setForgotEmail(email);
+          setForgotVisible(true);
+        }}
+      >
+        <Text style={styles.forgotText}>Forgot Password?</Text>
+      </Pressable>
+
       {/* LOGIN BUTTON */}
       <Pressable style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
         {loading ? (
@@ -289,6 +371,49 @@ export default function LoginScreen({ navigation }) {
           Sign Up
         </Text>
       </Text>
+
+      {/* ==========================
+          FORGOT PASSWORD MODAL
+      ========================== */}
+      <Modal visible={forgotVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Forgot Password</Text>
+
+            <Text style={styles.modalDesc}>
+              Enter your email and we will send you OTP to reset password.
+            </Text>
+
+            <TextInput
+              placeholder="Email"
+              placeholderTextColor="#666"
+              style={styles.modalInput}
+              value={forgotEmail}
+              onChangeText={setForgotEmail}
+              autoCapitalize="none"
+            />
+
+            <Pressable
+              style={styles.modalBtn}
+              onPress={handleForgotPassword}
+              disabled={forgotLoading}
+            >
+              {forgotLoading ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.modalBtnText}>Send OTP</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={styles.modalCancel}
+              onPress={() => setForgotVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -322,13 +447,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+  forgotText: {
+    color: "#7CFF00",
+    textAlign: "right",
+    marginBottom: 15,
+    fontWeight: "bold",
+  },
+
   loginBtn: {
     backgroundColor: "#7CFF00",
     height: 58,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 5,
     marginBottom: 18,
   },
 
@@ -396,5 +528,73 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 15,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+
+  modalBox: {
+    width: "100%",
+    backgroundColor: "#111",
+    padding: 22,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(124,255,0,0.3)",
+  },
+
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#7CFF00",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+
+  modalDesc: {
+    color: "#aaa",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 15,
+  },
+
+  modalInput: {
+    height: 55,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    fontSize: 16,
+  },
+
+  modalBtn: {
+    backgroundColor: "#7CFF00",
+    height: 55,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  modalBtnText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#000",
+  },
+
+  modalCancel: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+
+  modalCancelText: {
+    color: "#aaa",
+    fontWeight: "bold",
   },
 });

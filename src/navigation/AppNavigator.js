@@ -27,6 +27,10 @@ import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
 
 import RefundRequestScreen from "../screens/RefundRequestScreen";
 import MyOrdersScreen from "../screens/MyOrdersScreen";
+import ResetPasswordScreen from "../screens/ResetPasswordScreen";
+import VerifyOTPScreen from "../screens/VerifyOTPScreen";
+
+
 
 const Stack = createNativeStackNavigator();
 
@@ -78,6 +82,9 @@ export default function AppNavigator() {
       {/* AUTH */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
+
 
       {/* MAIN */}
       <Stack.Screen name="MainTabs" component={MainTabs} />
@@ -92,6 +99,7 @@ export default function AppNavigator() {
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
+
 
       {/* ORGANIZER MODULES */}
       <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
