@@ -8,6 +8,7 @@ import {
   Modal,
   FlatList,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -15,15 +16,33 @@ import { apiFetch, safeJson } from "../services/api";
 
 export default function OrganizerPaymentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   const [showEventPicker, setShowEventPicker] = useState(false);
 
+  const [payments, setPayments] = useState([]);
+
+  const [summary, setSummary] = useState({
+    total_paid: 0,
+    total_commission: 0,
+    total_organizer_amount: 0,
+    count: 0,
+  });
+
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  useEffect(() => {
+    if (selectedEvent?.id) {
+      fetchPayments(selectedEvent.id);
+    }
+  }, [selectedEvent]);
 
   async function fetchEvents() {
     try {
@@ -33,7 +52,7 @@ export default function OrganizerPaymentsScreen({ navigation }) {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        console.log("❌ Organizer Payments Events error:", data);
+        console.log("❌ Events error:", data);
         Alert.alert("Error", data?.detail || "Failed to load events.");
         return;
       }
@@ -46,10 +65,69 @@ export default function OrganizerPaymentsScreen({ navigation }) {
         setSelectedEvent(null);
       }
     } catch (err) {
-      console.log("❌ Organizer Payments fetch events failed:", err);
+      console.log("❌ Fetch events failed:", err);
       Alert.alert("Error", "Failed to load events.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPayments(eventId) {
+    try {
+      setPaymentsLoading(true);
+
+      // ✅ This endpoint must exist in your backend
+      const res = await apiFetch(`/api/payments/organizer/?event_id=${eventId}`);
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        console.log("❌ Payments error:", data);
+        Alert.alert("Error", data?.detail || "Failed to load payments.");
+        return;
+      }
+
+      // Expected response format:
+      // {
+      //   payments: [],
+      //   summary: { total_paid, total_commission, total_organizer_amount, count }
+      // }
+
+      setPayments(data.payments || []);
+
+      setSummary({
+        total_paid: data?.summary?.total_paid || 0,
+        total_commission: data?.summary?.total_commission || 0,
+        total_organizer_amount: data?.summary?.total_organizer_amount || 0,
+        count: data?.summary?.count || 0,
+      });
+    } catch (err) {
+      console.log("❌ Fetch payments failed:", err);
+      Alert.alert("Error", "Failed to load payments.");
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }
+
+  function formatMoney(amount) {
+    const n = Number(amount || 0);
+    return n.toFixed(2);
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return d.toLocaleString();
+  }
+
+  async function onRefresh() {
+    try {
+      setRefreshing(true);
+      await fetchEvents();
+      if (selectedEvent?.id) {
+        await fetchPayments(selectedEvent.id);
+      }
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -63,7 +141,12 @@ export default function OrganizerPaymentsScreen({ navigation }) {
 
         <Text style={styles.title}>Payments</Text>
 
-        <Pressable style={styles.refreshBtn} onPress={fetchEvents}>
+        <Pressable
+          style={styles.refreshBtn}
+          onPress={() => {
+            if (selectedEvent?.id) fetchPayments(selectedEvent.id);
+          }}
+        >
           <Ionicons name="refresh" size={22} color="#00d4ff" />
         </Pressable>
       </View>
@@ -83,34 +166,113 @@ export default function OrganizerPaymentsScreen({ navigation }) {
         <Ionicons name="chevron-down" size={20} color="#7CFF00" />
       </Pressable>
 
-      {/* BODY */}
+      {/* LOADING EVENTS */}
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color="#7CFF00" />
-          <Text style={styles.loadingText}>Loading payments...</Text>
+          <Text style={styles.loadingText}>Loading events...</Text>
         </View>
       ) : (
-        <View style={styles.body}>
-          <Ionicons name="card" size={60} color="#7CFF00" />
-          <Text style={styles.textTitle}>Payments Module</Text>
+        <>
+          {/* SUMMARY BOX */}
+          <View style={styles.summaryBox}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Paid</Text>
+              <Text style={styles.summaryValue}>
+                ${formatMoney(summary.total_paid)}
+              </Text>
+            </View>
 
-          <Text style={styles.textDesc}>
-            This screen will show payments made for the selected event.
-          </Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Commission</Text>
+              <Text style={[styles.summaryValue, { color: "#ff4444" }]}>
+                ${formatMoney(summary.total_commission)}
+              </Text>
+            </View>
 
-          <Text style={styles.note}>
-            Selected Event ID: {selectedEvent ? selectedEvent.id : "None"}
-          </Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Organizer Earnings</Text>
+              <Text style={[styles.summaryValue, { color: "#7CFF00" }]}>
+                ${formatMoney(summary.total_organizer_amount)}
+              </Text>
+            </View>
 
-          <Pressable
-            style={styles.comingBtn}
-            onPress={() =>
-              Alert.alert("Coming Soon", "Payments list will be added next.")
-            }
-          >
-            <Text style={styles.comingBtnText}>View Payments (Soon)</Text>
-          </Pressable>
-        </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Payments Count</Text>
+              <Text style={styles.summaryValue}>{summary.count}</Text>
+            </View>
+          </View>
+
+          {/* PAYMENTS LIST */}
+          {paymentsLoading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator size="large" color="#7CFF00" />
+              <Text style={styles.loadingText}>Loading payments...</Text>
+            </View>
+          ) : payments.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons name="wallet-outline" size={60} color="#333" />
+              <Text style={styles.emptyTitle}>No Payments Yet</Text>
+              <Text style={styles.emptyText}>
+                No payment has been made for this event.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={payments}
+              keyExtractor={(item) => item.id.toString()}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+              contentContainerStyle={{ paddingBottom: 120 }}
+              renderItem={({ item }) => (
+                <View style={styles.paymentCard}>
+                  <View style={styles.paymentTop}>
+                    <Text style={styles.paymentUser}>
+                      {item?.buyer_name || "Unknown Buyer"}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.statusBadge,
+                        item.status === "paid"
+                          ? styles.statusPaid
+                          : styles.statusPending,
+                      ]}
+                    >
+                      {item.status?.toUpperCase() || "UNKNOWN"}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.paymentSmall}>
+                    Amount:{" "}
+                    <Text style={styles.paymentBold}>
+                      ${formatMoney(item.amount)}
+                    </Text>
+                  </Text>
+
+                  <Text style={styles.paymentSmall}>
+                    Commission:{" "}
+                    <Text style={{ color: "#ff4444", fontWeight: "bold" }}>
+                      ${formatMoney(item.commission_amount)}
+                    </Text>
+                  </Text>
+
+                  <Text style={styles.paymentSmall}>
+                    Organizer:{" "}
+                    <Text style={{ color: "#7CFF00", fontWeight: "bold" }}>
+                      ${formatMoney(item.organizer_amount)}
+                    </Text>
+                  </Text>
+
+                  <Text style={styles.paymentDate}>
+                    {formatDate(item.created_at)}
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </>
       )}
 
       {/* EVENT PICKER MODAL */}
@@ -137,7 +299,9 @@ export default function OrganizerPaymentsScreen({ navigation }) {
                     }}
                   >
                     <Text style={styles.eventOptionText}>{item.title}</Text>
-                    <Text style={styles.eventOptionSmall}>{item.location}</Text>
+                    <Text style={styles.eventOptionSmall}>
+                      {item.location || "No Location"}
+                    </Text>
                   </Pressable>
                 )}
               />
@@ -210,7 +374,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 18,
   },
 
   selectLabel: {
@@ -238,47 +402,109 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  body: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 80,
+  summaryBox: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
   },
 
-  textTitle: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "bold",
-    marginTop: 20,
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
 
-  textDesc: {
+  summaryLabel: {
     color: "#aaa",
+    fontSize: 13,
+  },
+
+  summaryValue: {
+    color: "#fff",
     fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  emptyBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 120,
+  },
+
+  emptyTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 15,
+  },
+
+  emptyText: {
+    color: "#777",
     textAlign: "center",
     marginTop: 10,
-    lineHeight: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 25,
+    lineHeight: 18,
   },
 
-  note: {
-    color: "#666",
-    marginTop: 20,
-    fontSize: 12,
+  paymentCard: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
   },
 
-  comingBtn: {
-    marginTop: 25,
-    backgroundColor: "#7CFF00",
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 22,
+  paymentTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
   },
 
-  comingBtnText: {
-    color: "#000",
+  paymentUser: {
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 15,
+    fontSize: 14,
+  },
+
+  statusBadge: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+
+  statusPaid: {
+    backgroundColor: "#7CFF00",
+    color: "#000",
+  },
+
+  statusPending: {
+    backgroundColor: "#ff4444",
+    color: "#fff",
+  },
+
+  paymentSmall: {
+    color: "#aaa",
+    fontSize: 12,
+    marginBottom: 6,
+  },
+
+  paymentBold: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
+  paymentDate: {
+    marginTop: 10,
+    color: "#666",
+    fontSize: 11,
   },
 
   modalOverlay: {
@@ -303,13 +529,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 16,
     textAlign: "center",
-  },
-
-  emptyText: {
-    color: "#777",
-    textAlign: "center",
-    marginTop: 30,
-    marginBottom: 30,
   },
 
   eventOption: {
