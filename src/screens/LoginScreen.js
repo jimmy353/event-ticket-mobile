@@ -55,8 +55,7 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      // ✅ FIXED ENDPOINT HERE
-      const res = await apiFetch("/api/auth/login/", {
+      const res = await apiFetch("/api/auth/login-role/", {
         method: "POST",
         body: JSON.stringify({
           email,
@@ -122,7 +121,10 @@ export default function LoginScreen({ navigation }) {
           return;
         }
 
-        Alert.alert("Login Failed", data.detail || data.error || "Invalid credentials");
+        Alert.alert(
+          "Login Failed",
+          data.detail || data.error || "Invalid credentials"
+        );
         setLoading(false);
         return;
       }
@@ -134,9 +136,20 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
+      // ✅ FIX: BLOCK WRONG ROLE LOGIN (Frontend Security)
+      if (data.role && data.role !== role) {
+        Alert.alert(
+          "Wrong Account Type",
+          `This account is registered as ${data.role}. Please switch to the ${data.role} tab.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // ✅ FIX: ALWAYS SAVE BACKEND ROLE NOT UI ROLE
       await AsyncStorage.setItem("access", data.access);
       await AsyncStorage.setItem("refresh", data.refresh);
-      await AsyncStorage.setItem("role", role);
+      await AsyncStorage.setItem("role", data.role || role);
 
       Alert.alert("Success", "Login successful!");
 
@@ -230,7 +243,10 @@ export default function LoginScreen({ navigation }) {
       }
 
       if (!res.ok) {
-        Alert.alert("Google Login Failed", data.detail || data.error || "Try again");
+        Alert.alert(
+          "Google Login Failed",
+          data.detail || data.error || "Try again"
+        );
         setLoading(false);
         return;
       }
@@ -346,7 +362,10 @@ export default function LoginScreen({ navigation }) {
         style={styles.socialBtn}
         onPress={() => {
           if (role === "organizer") {
-            Alert.alert("Not Allowed", "Google login is only available for customers.");
+            Alert.alert(
+              "Not Allowed",
+              "Google login is only available for customers."
+            );
             return;
           }
           promptAsync();
