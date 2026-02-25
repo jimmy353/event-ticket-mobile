@@ -21,13 +21,18 @@ function formatDate(date) {
   return new Date(date).toLocaleString();
 }
 
-// ✅ Refund allowed only if event starts in more than 24 hours
+/**
+ * Refund allowed anytime UNTIL 24 hours before event
+ */
 function canRequestRefund(eventStartDate) {
   if (!eventStartDate) return false;
+
   const eventStart = new Date(eventStartDate).getTime();
   const now = Date.now();
-  const hoursLeft = (eventStart - now) / (1000 * 60 * 60);
-  return hoursLeft > 24;
+
+  const cutoff = eventStart - 24 * 60 * 60 * 1000;
+
+  return now < cutoff;
 }
 
 export default function MyOrdersScreen({ navigation }) {
@@ -69,7 +74,6 @@ export default function MyOrdersScreen({ navigation }) {
   }
 
   async function requestRefund(order) {
-    // ✅ safety checks
     if (!order?.id) return;
 
     if (order.status !== "paid") {
@@ -99,10 +103,14 @@ export default function MyOrdersScreen({ navigation }) {
                 method: "POST",
                 body: JSON.stringify({ order_id: order.id }),
               });
+
               const data = await safeJson(res);
 
               if (!res.ok) {
-                Alert.alert("Error", data?.error || data?.detail || "Refund request failed");
+                Alert.alert(
+                  "Error",
+                  data?.error || data?.detail || "Refund request failed"
+                );
                 return;
               }
 
@@ -119,7 +127,9 @@ export default function MyOrdersScreen({ navigation }) {
   }
 
   const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return [...orders].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
   }, [orders]);
 
   return (
@@ -134,19 +144,30 @@ export default function MyOrdersScreen({ navigation }) {
         <FlatList
           data={sortedOrders}
           keyExtractor={(item) => String(item.id)}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item }) => {
-            const refundable =
-              item.status === "paid" && canRequestRefund(item.event_start_date);
+            const refundAllowed =
+              item.status === "paid" &&
+              canRequestRefund(item.event_start_date);
+
+            const refundRequested =
+              item.status === "refund_requested" ||
+              item.status === "refunded";
 
             return (
               <View style={styles.card}>
-                <Text style={styles.eventTitle}>{item.event_title || "Event"}</Text>
+                <Text style={styles.eventTitle}>
+                  {item.event_title || "Event"}
+                </Text>
 
                 <Text style={styles.row}>
                   <Text style={styles.label}>Ticket: </Text>
-                  <Text style={styles.value}>{item.ticket_type_name || "-"}</Text>
+                  <Text style={styles.value}>
+                    {item.ticket_type_name || "-"}
+                  </Text>
                 </Text>
 
                 <Text style={styles.row}>
@@ -156,40 +177,67 @@ export default function MyOrdersScreen({ navigation }) {
 
                 <Text style={styles.row}>
                   <Text style={styles.label}>Total: </Text>
-                  <Text style={styles.value}>SSP {money(item.total_amount)}</Text>
+                  <Text style={styles.value}>
+                    SSP {money(item.total_amount)}
+                  </Text>
                 </Text>
 
                 <Text style={styles.row}>
                   <Text style={styles.label}>Status: </Text>
-                  <Text style={[styles.value, item.status === "paid" ? styles.paid : styles.pending]}>
+                  <Text
+                    style={[
+                      styles.value,
+                      item.status === "paid"
+                        ? styles.paid
+                        : item.status === "refund_requested"
+                        ? styles.processing
+                        : item.status === "refunded"
+                        ? styles.refunded
+                        : styles.pending,
+                    ]}
+                  >
                     {String(item.status || "").toUpperCase()}
                   </Text>
                 </Text>
 
                 <Text style={styles.row}>
                   <Text style={styles.label}>Date: </Text>
-                  <Text style={styles.value}>{formatDate(item.created_at)}</Text>
+                  <Text style={styles.value}>
+                    {formatDate(item.created_at)}
+                  </Text>
                 </Text>
 
-                {/* ✅ Refund Button */}
-                <Pressable
-                  onPress={() => requestRefund(item)}
-                  disabled={!refundable}
-                  style={[
-                    styles.refundBtn,
-                    !refundable && { opacity: 0.4 },
-                  ]}
-                >
-                  <Text style={styles.refundText}>
-                    {refundable ? "Request Refund" : "Refund Not Available"}
-                  </Text>
-                </Pressable>
+                {/* REFUND BUTTON */}
+                {!refundRequested ? (
+                  <Pressable
+                    onPress={() => requestRefund(item)}
+                    disabled={!refundAllowed}
+                    style={[
+                      styles.refundBtn,
+                      !refundAllowed && { opacity: 0.4 },
+                    ]}
+                  >
+                    <Text style={styles.refundText}>
+                      {refundAllowed
+                        ? "Request Refund"
+                        : "Refund Not Available"}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.statusBox}>
+                    <Text style={styles.statusText}>
+                      {item.status === "refund_requested"
+                        ? "Refund Requested"
+                        : "Refund Completed"}
+                    </Text>
+                  </View>
+                )}
 
-                {!refundable && item.status === "paid" ? (
+                {!refundAllowed && item.status === "paid" && (
                   <Text style={styles.hint}>
                     Refund allowed until 24 hours before event.
                   </Text>
-                ) : null}
+                )}
               </View>
             );
           }}
@@ -212,7 +260,13 @@ const styles = StyleSheet.create({
     borderColor: "#222",
     marginBottom: 14,
   },
-  eventTitle: { color: "#7CFF00", fontWeight: "bold", fontSize: 16, marginBottom: 10 },
+
+  eventTitle: {
+    color: "#7CFF00",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 10,
+  },
 
   row: { marginBottom: 6 },
   label: { color: "#777" },
@@ -220,6 +274,8 @@ const styles = StyleSheet.create({
 
   paid: { color: "#7CFF00" },
   pending: { color: "#FFD60A" },
+  processing: { color: "#FFA500" },
+  refunded: { color: "#00BFFF" },
 
   refundBtn: {
     marginTop: 12,
@@ -228,7 +284,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
+
   refundText: { color: "#000", fontWeight: "bold" },
+
+  statusBox: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#333",
+    alignItems: "center",
+  },
+
+  statusText: { color: "#fff", fontWeight: "bold" },
 
   hint: { marginTop: 10, color: "#777", fontSize: 12 },
 });
