@@ -1,406 +1,234 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   Pressable,
-  RefreshControl,
+  ActivityIndicator,
   Alert,
+  SafeAreaView,
+  RefreshControl,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiFetch, safeJson } from "../services/api";
 
-import { apiFetch } from "../services/api";
+function money(n) {
+  return Number(n || 0).toFixed(2);
+}
+
+function formatDate(date) {
+  if (!date) return "Unknown";
+  return new Date(date).toLocaleString();
+}
+
+// ✅ Refund allowed only if event starts in more than 24 hours
+function canRequestRefund(eventStartDate) {
+  if (!eventStartDate) return false;
+  const eventStart = new Date(eventStartDate).getTime();
+  const now = Date.now();
+  const hoursLeft = (eventStart - now) / (1000 * 60 * 60);
+  return hoursLeft > 24;
+}
 
 export default function MyOrdersScreen({ navigation }) {
-  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
-  async function safeJson(res) {
-    const text = await res.text();
-
+  async function fetchOrders() {
     try {
-      return JSON.parse(text);
-    } catch {
-      console.log("❌ Orders returned HTML:", text);
-      return { error: "Server returned invalid response" };
-    }
-  }
-
-  const fetchOrders = async () => {
-    setLoading(true);
-
-    try {
+      setLoading(true);
       const res = await apiFetch("/api/orders/my/");
       const data = await safeJson(res);
 
       if (!res.ok) {
-        Alert.alert("Error", data.error || "Failed to load orders");
-        setOrders([]);
-        setLoading(false);
+        Alert.alert("Error", data?.detail || data?.error || "Failed to load orders");
         return;
       }
 
       setOrders(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.log("❌ Orders fetch error:", err.message);
+    } catch (e) {
+      console.log("❌ fetchOrders:", e);
+      Alert.alert("Error", "Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      if (err.message.includes("Session expired")) {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Login" }],
-        });
-      } else {
-        Alert.alert("Error", err.message);
-      }
+  async function onRefresh() {
+    try {
+      setRefreshing(true);
+      await fetchOrders();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function requestRefund(order) {
+    // ✅ safety checks
+    if (!order?.id) return;
+
+    if (order.status !== "paid") {
+      Alert.alert("Not allowed", "Only paid orders can be refunded.");
+      return;
     }
 
-    setLoading(false);
-  };
+    if (!canRequestRefund(order.event_start_date)) {
+      Alert.alert(
+        "Refund closed",
+        "Refund is only accepted until 24 hours before the event."
+      );
+      return;
+    }
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchOrders();
-    setRefreshing(false);
-  };
+    Alert.alert(
+      "Request Refund",
+      "Refund may take 3 to 7 days to be processed in MoMo.\n\nContinue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, Request",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await apiFetch("/api/refunds/request/", {
+                method: "POST",
+                body: JSON.stringify({ order_id: order.id }),
+              });
+              const data = await safeJson(res);
 
-  const formatMoney = (amount) => {
-    if (!amount) return "0";
-    return Number(amount).toLocaleString("en-US");
-  };
+              if (!res.ok) {
+                Alert.alert("Error", data?.error || data?.detail || "Refund request failed");
+                return;
+              }
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return d.toDateString();
-  };
-
-  const getStatusColor = (status) => {
-    if (status === "paid") return "#7CFF00";
-    if (status === "pending") return "#ffaa00";
-    if (status === "refunded") return "#00d4ff";
-    if (status === "refund_requested") return "#ff00ff";
-    return "#aaa";
-  };
-
-  // ✅ LOGOUT (FIXED)
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Do you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await AsyncStorage.removeItem("access");
-            await AsyncStorage.removeItem("refresh");
-            await AsyncStorage.removeItem("is_organizer"); // ✅ VERY IMPORTANT
-
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Login" }],
-            });
-          } catch (err) {
-            Alert.alert("Error", "Logout failed");
-          }
-        },
-      },
-    ]);
-  };
-
-  const renderItem = ({ item }) => {
-    const statusColor = getStatusColor(item.status);
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.rowTop}>
-          <Text style={styles.eventTitle}>{item.event_title || "Event"}</Text>
-
-          <View style={[styles.statusBadge, { borderColor: statusColor }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {(item.status || "UNKNOWN").toUpperCase()}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.sub}>
-          🎟 Ticket:{" "}
-          <Text style={styles.bold}>{item.ticket_type_name || "Ticket"}</Text>
-        </Text>
-
-        <Text style={styles.sub}>
-          🔢 Quantity: <Text style={styles.bold}>{item.quantity || 1}</Text>
-        </Text>
-
-        <Text style={styles.sub}>
-          📅 Date: <Text style={styles.bold}>{formatDate(item.created_at)}</Text>
-        </Text>
-
-        <Text style={styles.amount}>SSP {formatMoney(item.total_amount)}</Text>
-
-        {/* REFUND BUTTON */}
-        {item.status === "paid" && (
-          <Pressable
-            style={styles.refundBtn}
-            onPress={() =>
-              navigation.navigate("RefundRequest", {
-                order: item,
-              })
+              Alert.alert("Submitted", "Refund requested successfully.");
+              fetchOrders();
+            } catch (e) {
+              console.log("❌ requestRefund:", e);
+              Alert.alert("Error", "Refund request failed.");
             }
-          >
-            <Ionicons name="return-down-back" size={18} color="#000" />
-            <Text style={styles.refundText}>Request Refund</Text>
-          </Pressable>
-        )}
-
-        {item.status === "refund_requested" && (
-          <Text style={styles.pendingRefund}>
-            Refund request already sent. Waiting approval...
-          </Text>
-        )}
-
-        {item.status === "refunded" && (
-          <Text style={styles.refundedText}>Refund completed successfully.</Text>
-        )}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#7CFF00" />
-        <Text style={{ color: "#aaa", marginTop: 12 }}>
-          Loading your orders...
-        </Text>
-      </View>
+          },
+        },
+      ]
     );
   }
 
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [orders]);
+
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <LinearGradient
-        colors={["#7CFF00", "#00d4ff", "#ff00ff"]}
-        style={styles.header}
-      >
-        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </Pressable>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>My Orders</Text>
+      </View>
 
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>My Orders</Text>
-          <Text style={styles.headerSub}>
-            Track purchases & refund requests
-          </Text>
-        </View>
-
-        {/* RIGHT ICONS */}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable style={styles.refreshBtn} onPress={fetchOrders}>
-            <Ionicons name="refresh" size={22} color="#000" />
-          </Pressable>
-
-          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#000" />
-          </Pressable>
-        </View>
-      </LinearGradient>
-
-      {/* LIST */}
-      {orders.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="cart-outline" size={60} color="#666" />
-          <Text style={styles.emptyText}>No orders yet</Text>
-        </View>
+      {loading ? (
+        <ActivityIndicator size="large" color="#7CFF00" style={{ marginTop: 30 }} />
       ) : (
         <FlatList
-          data={orders}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 160 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          data={sortedOrders}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          renderItem={({ item }) => {
+            const refundable =
+              item.status === "paid" && canRequestRefund(item.event_start_date);
+
+            return (
+              <View style={styles.card}>
+                <Text style={styles.eventTitle}>{item.event_title || "Event"}</Text>
+
+                <Text style={styles.row}>
+                  <Text style={styles.label}>Ticket: </Text>
+                  <Text style={styles.value}>{item.ticket_type_name || "-"}</Text>
+                </Text>
+
+                <Text style={styles.row}>
+                  <Text style={styles.label}>Qty: </Text>
+                  <Text style={styles.value}>{item.quantity}</Text>
+                </Text>
+
+                <Text style={styles.row}>
+                  <Text style={styles.label}>Total: </Text>
+                  <Text style={styles.value}>SSP {money(item.total_amount)}</Text>
+                </Text>
+
+                <Text style={styles.row}>
+                  <Text style={styles.label}>Status: </Text>
+                  <Text style={[styles.value, item.status === "paid" ? styles.paid : styles.pending]}>
+                    {String(item.status || "").toUpperCase()}
+                  </Text>
+                </Text>
+
+                <Text style={styles.row}>
+                  <Text style={styles.label}>Date: </Text>
+                  <Text style={styles.value}>{formatDate(item.created_at)}</Text>
+                </Text>
+
+                {/* ✅ Refund Button */}
+                <Pressable
+                  onPress={() => requestRefund(item)}
+                  disabled={!refundable}
+                  style={[
+                    styles.refundBtn,
+                    !refundable && { opacity: 0.4 },
+                  ]}
+                >
+                  <Text style={styles.refundText}>
+                    {refundable ? "Request Refund" : "Refund Not Available"}
+                  </Text>
+                </Pressable>
+
+                {!refundable && item.status === "paid" ? (
+                  <Text style={styles.hint}>
+                    Refund allowed until 24 hours before event.
+                  </Text>
+                ) : null}
+              </View>
+            );
+          }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
-/* ================= STYLES ================= */
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-
-  loading: {
-    flex: 1,
-    backgroundColor: "#000",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  header: {
-    paddingTop: 60,
-    paddingBottom: 22,
-    paddingHorizontal: 18,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-
-  refreshBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  logoutBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  headerTitle: {
-    color: "#000",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-
-  headerSub: {
-    color: "#111",
-    fontSize: 13,
-    marginTop: 3,
-    fontWeight: "600",
-  },
-
-  empty: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-
-  emptyText: {
-    color: "#666",
-    marginTop: 12,
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  container: { flex: 1, backgroundColor: "#000", paddingHorizontal: 16 },
+  header: { marginTop: 18, marginBottom: 18 },
+  title: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 
   card: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 20,
-    padding: 18,
-    marginHorizontal: 16,
-    marginTop: 16,
+    backgroundColor: "#111",
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "#222",
+    marginBottom: 14,
   },
+  eventTitle: { color: "#7CFF00", fontWeight: "bold", fontSize: 16, marginBottom: 10 },
 
-  rowTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  row: { marginBottom: 6 },
+  label: { color: "#777" },
+  value: { color: "#fff", fontWeight: "bold" },
 
-  eventTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    flex: 1,
-    marginRight: 10,
-  },
-
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-
-  statusText: {
-    fontWeight: "bold",
-    fontSize: 12,
-  },
-
-  sub: {
-    color: "#aaa",
-    marginTop: 10,
-    fontSize: 13,
-  },
-
-  bold: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-
-  amount: {
-    color: "#7CFF00",
-    fontSize: 22,
-    fontWeight: "bold",
-    marginTop: 14,
-  },
+  paid: { color: "#7CFF00" },
+  pending: { color: "#FFD60A" },
 
   refundBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-    backgroundColor: "#7CFF00",
+    marginTop: 12,
+    backgroundColor: "#FFD60A",
+    borderRadius: 14,
     paddingVertical: 14,
-    borderRadius: 18,
+    alignItems: "center",
   },
+  refundText: { color: "#000", fontWeight: "bold" },
 
-  refundText: {
-    color: "#000",
-    fontWeight: "bold",
-    fontSize: 15,
-    marginLeft: 8,
-  },
-
-  pendingRefund: {
-    color: "#ff00ff",
-    fontSize: 12,
-    marginTop: 16,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-
-  refundedText: {
-    color: "#00d4ff",
-    fontSize: 12,
-    marginTop: 16,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
+  hint: { marginTop: 10, color: "#777", fontSize: 12 },
 });
