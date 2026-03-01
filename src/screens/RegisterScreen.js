@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,61 +7,226 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  Animated,
+  Dimensions,
+  TouchableWithoutFeedback,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { apiFetch } from "../services/api";
 
-import * as DocumentPicker from "expo-document-picker";
-import { Ionicons } from "@expo/vector-icons";
+const { width, height } = Dimensions.get("window");
 
-import { apiFetch, safeJson } from "../services/api";
+/* ===========================
+   ADVANCED HEART ENGINE
+=========================== */
+
+function Heart({ tapSignal }) {
+  const posX = useRef(new Animated.Value(Math.random() * width)).current;
+  const posY = useRef(new Animated.Value(Math.random() * height)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+
+  const isNeon = Math.random() < 0.25;
+  const size = 18 + Math.random() * 28;
+
+  useEffect(() => {
+    if (Math.random() < 0.33) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(posX, {
+              toValue: width,
+              duration: 12000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(posY, {
+              toValue: height,
+              duration: 12000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(posX, {
+              toValue: 0,
+              duration: 12000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(posY, {
+              toValue: 0,
+              duration: 12000,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      ).start();
+    } else if (Math.random() < 0.66) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(posX, {
+              toValue: width / 2,
+              duration: 8000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(posY, {
+              toValue: height / 2,
+              duration: 8000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(posX, {
+              toValue: Math.random() * width,
+              duration: 8000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(posY, {
+              toValue: Math.random() * height,
+              duration: 8000,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      ).start();
+    } else {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(posX, {
+            toValue: Math.random() * width,
+            duration: 10000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(posY, {
+            toValue: Math.random() * height,
+            duration: 10000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.4,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(rotate, {
+        toValue: 1,
+        duration: 15000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    if (tapSignal) {
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.8,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [tapSignal]);
+
+  const spin = rotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        fontSize: size,
+        transform: [
+          { translateX: posX },
+          { translateY: posY },
+          { scale },
+          { rotate: spin },
+        ],
+        color: isNeon ? "#7CFF00" : "#888",
+        textShadowColor: isNeon ? "#7CFF00" : "transparent",
+        textShadowRadius: isNeon ? 14 : 0,
+        opacity: 0.6,
+      }}
+    >
+      🩶
+    </Animated.Text>
+  );
+}
+
+function FloatingHearts({ tapSignal }) {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {Array.from({ length: 24 }).map((_, i) => (
+        <Heart key={i} tapSignal={tapSignal} />
+      ))}
+    </View>
+  );
+}
+
+/* ===========================
+   REGISTER SCREEN
+=========================== */
 
 export default function RegisterScreen({ navigation }) {
+  const [tapSignal, setTapSignal] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
 
-  const [role, setRole] = useState("customer");
+  const cardAnim = useRef(new Animated.Value(0)).current;
+  const zoom = useRef(new Animated.Value(1)).current;
 
-  const [companyName, setCompanyName] = useState("");
-  const [momoNumber, setMomoNumber] = useState("");
-  const [idFile, setIdFile] = useState(null);
+  useEffect(() => {
+    Animated.timing(cardAnim, {
+      toValue: 1,
+      duration: 900,
+      useNativeDriver: true,
+    }).start();
 
-  const [loading, setLoading] = useState(false);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(zoom, {
+          toValue: 1.04,
+          duration: 6000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(zoom, {
+          toValue: 1,
+          duration: 6000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
-  // ==========================
-  // PICK ID DOCUMENT
-  // ==========================
-  const pickIdDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["image/*", "application/pdf"],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) return;
-
-      const file = result.assets[0];
-      setIdFile(file);
-
-      Alert.alert("Uploaded", "ID Document selected successfully ✅");
-    } catch (err) {
-      Alert.alert("Error", "Failed to select file");
-    }
-  };
-
-  // ==========================
-  // REGISTER
-  // ==========================
   const handleRegister = async () => {
-    if (!fullName || !email || !password || !password2) {
-      Alert.alert("Error", "Full Name, Email and Password are required");
-      return;
-    }
-
-    if (!phone) {
-      Alert.alert("Error", "Phone number is required");
+    if (!fullName || !email || !password || !password2 || !phone) {
+      Alert.alert("Error", "All fields are required");
       return;
     }
 
@@ -70,341 +235,80 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
-    if (role === "organizer") {
-      if (!companyName || !momoNumber || !idFile) {
-        Alert.alert(
-          "Error",
-          "Company name, MoMo number and ID document are required for organizers"
-        );
-        return;
-      }
-    }
-
     setLoading(true);
 
     try {
-      const formData = new FormData();
-
-      formData.append("full_name", fullName);
-      formData.append("email", email);
-      formData.append("phone", phone);
-
-      formData.append("password", password);
-      formData.append("password2", password2);
-
-      formData.append("role", role);
-
-      if (role === "organizer") {
-        formData.append("company_name", companyName);
-        formData.append("momo_number", momoNumber);
-
-        formData.append("id_document", {
-          uri: idFile.uri,
-          name: idFile.name || "id_document.jpg",
-          type: idFile.mimeType || "image/jpeg",
-        });
-      }
-
       const res = await apiFetch("/api/auth/register/", {
         method: "POST",
-        body: formData,
+        body: JSON.stringify({
+          full_name: fullName,
+          email,
+          phone,
+          password,
+          password2,
+          role: "customer",
+        }),
       });
 
-      const data = await safeJson(res);
-
-      // ❌ Backend returned invalid json
-      if (data?.raw) {
-        console.log("❌ REGISTER RESPONSE NOT JSON:", data.raw);
-        Alert.alert("Server Error", "Backend returned invalid response");
-        setLoading(false);
-        return;
-      }
-
-      // ❌ Registration Failed
       if (!res.ok) {
-        console.log("❌ REGISTER ERROR:", data);
-
-        let message = "Try again";
-
-        if (data?.detail) message = data.detail;
-        else if (data?.error) message = data.error;
-        else if (typeof data === "object") {
-          message = Object.entries(data)
-            .map(([key, value]) => {
-              if (Array.isArray(value)) return `${key}: ${value.join(", ")}`;
-              return `${key}: ${value}`;
-            })
-            .join("\n");
-        }
-
-        Alert.alert("Register Failed", message);
+        Alert.alert("Register Failed");
         setLoading(false);
         return;
       }
 
-      // ✅ Organizer registration
-      if (role === "organizer") {
-        Alert.alert(
-          "Request Submitted ✅",
-          "Thank you! We are reviewing your organizer request.\n\nPlease verify your email OTP first."
-        );
-
-        // ✅ go to OTP verify screen
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "VerifyOTP", params: { email } }],
-        });
-
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Customer registration
-      Alert.alert(
-        "Account Created ✅",
-        "OTP has been sent to your email. Please verify your email."
-      );
-
-      // ✅ go to OTP verify screen
+      Alert.alert("Account Created ✅", "OTP sent to your email.");
       navigation.reset({
         index: 0,
         routes: [{ name: "VerifyOTP", params: { email } }],
       });
-    } catch (err) {
-      console.log("❌ Register error:", err);
-      Alert.alert("Error", err.message || "Something went wrong");
+    } catch {
+      Alert.alert("Error", "Something went wrong");
     }
 
     setLoading(false);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign Up</Text>
+    <TouchableWithoutFeedback onPress={() => setTapSignal(!tapSignal)}>
+      <Animated.View style={{ flex: 1, transform: [{ scale: zoom }] }}>
+        <LinearGradient
+          colors={["#000000", "#040404", "#0a0a0a"]}
+          style={StyleSheet.absoluteFill}
+        />
 
-      {/* ROLE SELECT */}
-      <View style={styles.roleBox}>
-        <Pressable
-          style={[styles.roleBtn, role === "customer" && styles.roleActive]}
-          onPress={() => setRole("customer")}
-        >
-          <Text
-            style={[
-              styles.roleText,
-              role === "customer" && { color: "#000" },
-            ]}
-          >
-            Customer
-          </Text>
-        </Pressable>
+        <FloatingHearts tapSignal={tapSignal} />
 
-        <Pressable
-          style={[styles.roleBtn, role === "organizer" && styles.roleActive]}
-          onPress={() => setRole("organizer")}
-        >
-          <Text
-            style={[
-              styles.roleText,
-              role === "organizer" && { color: "#000" },
-            ]}
-          >
-            Organizer
-          </Text>
-        </Pressable>
-      </View>
+        <ScrollView contentContainerStyle={styles.container}>
+          <Text style={styles.brand}>Sirheart Events</Text>
+          <Text style={styles.subtitle}>Create your account</Text>
 
-      <TextInput
-        placeholder="Full Name"
-        placeholderTextColor="#666"
-        style={styles.input}
-        value={fullName}
-        onChangeText={setFullName}
-      />
+          <Animated.View style={[styles.card, { opacity: cardAnim }]}>
+            <TextInput placeholder="Full Name" placeholderTextColor="#666" style={styles.input} value={fullName} onChangeText={setFullName} />
+            <TextInput placeholder="Email" placeholderTextColor="#666" style={styles.input} value={email} onChangeText={setEmail} />
+            <TextInput placeholder="Phone Number" placeholderTextColor="#666" style={styles.input} value={phone} onChangeText={setPhone} />
+            <TextInput placeholder="Password" placeholderTextColor="#666" style={styles.input} secureTextEntry value={password} onChangeText={setPassword} />
+            <TextInput placeholder="Confirm Password" placeholderTextColor="#666" style={styles.input} secureTextEntry value={password2} onChangeText={setPassword2} />
 
-      <TextInput
-        placeholder="Email"
-        placeholderTextColor="#666"
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        placeholder="Phone Number"
-        placeholderTextColor="#666"
-        style={styles.input}
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-      />
-
-      <TextInput
-        placeholder="Password"
-        placeholderTextColor="#666"
-        style={styles.input}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <TextInput
-        placeholder="Confirm Password"
-        placeholderTextColor="#666"
-        style={styles.input}
-        secureTextEntry
-        value={password2}
-        onChangeText={setPassword2}
-      />
-
-      {/* ORGANIZER EXTRA FIELDS */}
-      {role === "organizer" && (
-        <>
-          <TextInput
-            placeholder="Company Name"
-            placeholderTextColor="#666"
-            style={styles.input}
-            value={companyName}
-            onChangeText={setCompanyName}
-          />
-
-          <TextInput
-            placeholder="MoMo Number / Account"
-            placeholderTextColor="#666"
-            style={styles.input}
-            value={momoNumber}
-            onChangeText={setMomoNumber}
-            keyboardType="phone-pad"
-          />
-
-          <Pressable style={styles.uploadBtn} onPress={pickIdDocument}>
-            <Ionicons name="cloud-upload-outline" size={22} color="#7CFF00" />
-            <Text style={styles.uploadText}>
-              {idFile ? "ID Document Selected ✅" : "Upload ID / Passport"}
-            </Text>
-          </Pressable>
-        </>
-      )}
-
-      <Pressable style={styles.registerBtn} onPress={handleRegister}>
-        {loading ? (
-          <ActivityIndicator color="#000" />
-        ) : (
-          <Text style={styles.registerText}>
-            {role === "organizer" ? "Submit Request" : "Create Account"}
-          </Text>
-        )}
-      </Pressable>
-
-      <Text style={styles.bottomText}>
-        Already have an account?{" "}
-        <Text style={styles.link} onPress={() => navigation.navigate("Login")}>
-          Login
-        </Text>
-      </Text>
-    </View>
+            <Pressable style={styles.button} onPress={handleRegister}>
+              {loading ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.buttonText}>Create Account</Text>
+              )}
+            </Pressable>
+          </Animated.View>
+        </ScrollView>
+      </Animated.View>
+    </TouchableWithoutFeedback>
   );
 }
 
-/* ================== STYLES ================== */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-    paddingHorizontal: 24,
-    justifyContent: "center",
-  },
-
-  title: {
-    color: "#7CFF00",
-    fontSize: 36,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-
-  input: {
-    height: 55,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    marginBottom: 16,
-    color: "#fff",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    fontSize: 16,
-  },
-
-  registerBtn: {
-    backgroundColor: "#7CFF00",
-    height: 58,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 10,
-    marginBottom: 18,
-  },
-
-  registerText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000",
-  },
-
-  bottomText: {
-    color: "#aaa",
-    textAlign: "center",
-    marginTop: 22,
-    fontSize: 14,
-  },
-
-  link: {
-    color: "#7CFF00",
-    fontWeight: "bold",
-  },
-
-  roleBox: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 18,
-    gap: 10,
-  },
-
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-
-  roleActive: {
-    backgroundColor: "#7CFF00",
-  },
-
-  roleText: {
-    fontWeight: "bold",
-    color: "#fff",
-  },
-
-  uploadBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 55,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(124,255,0,0.4)",
-    marginBottom: 16,
-    gap: 10,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-
-  uploadText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 15,
-  },
+  container: { paddingHorizontal: 24, paddingTop: 100, paddingBottom: 40 },
+  brand: { color: "#7CFF00", fontSize: 32, fontWeight: "bold", textAlign: "center", marginBottom: 6 },
+  subtitle: { color: "#aaa", textAlign: "center", marginBottom: 40 },
+  card: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 26, padding: 24, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  input: { height: 55, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, paddingHorizontal: 18, marginBottom: 16, color: "#fff", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  button: { backgroundColor: "#7CFF00", height: 58, borderRadius: 30, justifyContent: "center", alignItems: "center", marginTop: 10 },
+  buttonText: { fontSize: 18, fontWeight: "bold", color: "#000" },
 });

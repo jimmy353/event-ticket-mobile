@@ -13,24 +13,11 @@ import TicketListScreen from "../screens/TicketListScreen";
 import CheckoutScreen from "../screens/CheckoutScreen";
 import PaymentSuccessScreen from "../screens/PaymentSuccessScreen";
 
-import OrganizerPayoutsScreen from "../screens/OrganizerPayoutsScreen";
-import OrganizerSelectEventScreen from "../screens/OrganizerSelectEventScreen";
-import OrganizerScanScreen from "../screens/OrganizerScanScreen";
-import OrganizerRefundsScreen from "../screens/OrganizerRefundsScreen";
-
-import OrganizerEventsScreen from "../screens/OrganizerEventsScreen";
-import OrganizerTicketsScreen from "../screens/OrganizerTicketsScreen";
-import OrganizerPaymentsScreen from "../screens/OrganizerPaymentsScreen";
-import OrganizerWalletsScreen from "../screens/OrganizerWalletsScreen";
-import OrganizerMyAccountScreen from "../screens/OrganizerMyAccountScreen";
-import OrganizerOrdersScreen from "../screens/OrganizerOrdersScreen";
-
 import RefundRequestScreen from "../screens/RefundRequestScreen";
 import MyOrdersScreen from "../screens/MyOrdersScreen";
 import ResetPasswordScreen from "../screens/ResetPasswordScreen";
 import VerifyOTPScreen from "../screens/VerifyOTPScreen";
-
-
+import NotificationsScreen from "../screens/NotificationsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -85,7 +72,6 @@ export default function AppNavigator() {
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
 
-
       {/* MAIN */}
       <Stack.Screen name="MainTabs" component={MainTabs} />
 
@@ -99,33 +85,8 @@ export default function AppNavigator() {
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
-
-
-      {/* ORGANIZER MODULES */}
-      <Stack.Screen name="OrganizerEvents" component={OrganizerEventsScreen} />
-      <Stack.Screen name="OrganizerTickets" component={OrganizerTicketsScreen} />
-      <Stack.Screen name="OrganizerOrders" component={OrganizerOrdersScreen} options={{ headerShown: false }} />
-
-     
-      
-      <Stack.Screen
-        name="OrganizerPayments"
-        component={OrganizerPaymentsScreen}
-      />
-      <Stack.Screen name="OrganizerPayouts" component={OrganizerPayoutsScreen} />
-      <Stack.Screen name="OrganizerRefunds" component={OrganizerRefundsScreen} />
-      <Stack.Screen name="OrganizerWallets" component={OrganizerWalletsScreen} />
-      <Stack.Screen
-        name="OrganizerMyAccount"
-        component={OrganizerMyAccountScreen}
-      />
-
-      {/* SCAN */}
-      <Stack.Screen
-        name="OrganizerSelectEvent"
-        component={OrganizerSelectEventScreen}
-      />
-      <Stack.Screen name="OrganizerScan" component={OrganizerScanScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }}
+/>
     </Stack.Navigator>
   );
 }

@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   RefreshControl,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch, safeJson } from "../services/api";
 
 function money(n) {
@@ -29,7 +30,6 @@ function canRequestRefund(eventStartDate) {
 
   const eventStart = new Date(eventStartDate).getTime();
   const now = Date.now();
-
   const cutoff = eventStart - 24 * 60 * 60 * 1000;
 
   return now < cutoff;
@@ -71,6 +71,29 @@ export default function MyOrdersScreen({ navigation }) {
     } finally {
       setRefreshing(false);
     }
+  }
+
+  async function handleLogout() {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.removeItem("access");
+            await AsyncStorage.removeItem("refresh");
+
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          },
+        },
+      ]
+    );
   }
 
   async function requestRefund(order) {
@@ -136,6 +159,10 @@ export default function MyOrdersScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Orders</Text>
+
+        <Pressable onPress={handleLogout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </Pressable>
       </View>
 
       {loading ? (
@@ -207,7 +234,6 @@ export default function MyOrdersScreen({ navigation }) {
                   </Text>
                 </Text>
 
-                {/* REFUND BUTTON */}
                 {!refundRequested ? (
                   <Pressable
                     onPress={() => requestRefund(item)}
@@ -249,8 +275,31 @@ export default function MyOrdersScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000", paddingHorizontal: 16 },
-  header: { marginTop: 18, marginBottom: 18 },
+
+  header: {
+    marginTop: 18,
+    marginBottom: 18,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
   title: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+
+  logoutBtn: {
+    backgroundColor: "rgba(255,0,0,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,0,0,0.4)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+
+  logoutText: {
+    color: "#ff4d4d",
+    fontWeight: "bold",
+    fontSize: 13,
+  },
 
   card: {
     backgroundColor: "#111",

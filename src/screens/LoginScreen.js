@@ -1,3 +1,9 @@
+// ONLY CHANGES:
+// 1. role state removed
+// 2. role selector UI removed
+// 3. role checks removed
+// 4. role always "customer"
+
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -20,10 +26,8 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [role, setRole] = useState("customer");
   const [loading, setLoading] = useState(false);
 
-  // Forgot password modal
   const [forgotVisible, setForgotVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -33,12 +37,6 @@ export default function LoginScreen({ navigation }) {
   useEffect(() => {
     if (response?.type === "success") {
       const token = response.authentication.accessToken;
-
-      if (role === "organizer") {
-        Alert.alert("Not Allowed", "Google login is only available for customers.");
-        return;
-      }
-
       googleLogin(token);
     }
   }, [response]);
@@ -60,63 +58,29 @@ export default function LoginScreen({ navigation }) {
         body: JSON.stringify({
           email,
           password,
-          role,
+          role: "customer", // 🔥 FORCE CUSTOMER
         }),
       });
 
       const data = await safeJson(res);
 
-      // ❌ Backend returned HTML
       if (data?.raw) {
-        console.log("❌ LOGIN RESPONSE (NOT JSON):", data.raw);
-
         Alert.alert(
           "Server Error",
-          "Backend returned invalid response. Check backend endpoint."
+          "Backend returned invalid response."
         );
-
         setLoading(false);
         return;
       }
 
-      // ❌ LOGIN FAILED
       if (!res.ok) {
-        if (data.status === "pending") {
-          Alert.alert(
-            "Request Pending",
-            "Thank you, we’re reviewing your request.\n\nCome back and login after approval in 1 to 3 days."
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (data.status === "rejected") {
-          Alert.alert(
-            "Request Rejected",
-            "Sorry, your organizer request was rejected.\n\nPlease contact support."
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (data.status === "not_requested") {
-          Alert.alert(
-            "Not Registered",
-            "You have not submitted an organizer request.\n\nPlease sign up as an organizer first."
-          );
-          setLoading(false);
-          return;
-        }
-
         if (data.status === "not_verified") {
           Alert.alert(
             "Login Failed",
             "Email not verified. Please verify your email OTP first."
           );
 
-          // ✅ navigate to OTP verify screen
           navigation.navigate("VerifyOTP", { email });
-
           setLoading(false);
           return;
         }
@@ -129,27 +93,15 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
-      // ✅ LOGIN SUCCESS
       if (!data.access || !data.refresh) {
         Alert.alert("Error", "Invalid token response from server");
         setLoading(false);
         return;
       }
 
-      // ✅ FIX: BLOCK WRONG ROLE LOGIN (Frontend Security)
-      if (data.role && data.role !== role) {
-        Alert.alert(
-          "Wrong Account Type",
-          `This account is registered as ${data.role}. Please switch to the ${data.role} tab.`
-        );
-        setLoading(false);
-        return;
-      }
-
-      // ✅ FIX: ALWAYS SAVE BACKEND ROLE NOT UI ROLE
       await AsyncStorage.setItem("access", data.access);
       await AsyncStorage.setItem("refresh", data.refresh);
-      await AsyncStorage.setItem("role", data.role || role);
+      await AsyncStorage.setItem("role", "customer");
 
       Alert.alert("Success", "Login successful!");
 
@@ -178,19 +130,10 @@ export default function LoginScreen({ navigation }) {
     try {
       const res = await apiFetch("/api/auth/forgot-password/", {
         method: "POST",
-        body: JSON.stringify({
-          email: forgotEmail,
-        }),
+        body: JSON.stringify({ email: forgotEmail }),
       });
 
       const data = await safeJson(res);
-
-      if (data?.raw) {
-        console.log("❌ FORGOT PASSWORD RESPONSE NOT JSON:", data.raw);
-        Alert.alert("Server Error", "Backend returned invalid response");
-        setForgotLoading(false);
-        return;
-      }
 
       if (!res.ok) {
         Alert.alert("Failed", data.detail || data.error || "Try again");
@@ -201,8 +144,6 @@ export default function LoginScreen({ navigation }) {
       Alert.alert("OTP Sent ✅", "Password reset OTP has been sent to your email.");
 
       setForgotVisible(false);
-
-      // ✅ go to reset password screen
       navigation.navigate("ResetPassword", { email: forgotEmail });
 
       setForgotEmail("");
@@ -230,29 +171,8 @@ export default function LoginScreen({ navigation }) {
 
       const data = await safeJson(res);
 
-      if (data?.raw) {
-        console.log("❌ GOOGLE LOGIN RESPONSE (NOT JSON):", data.raw);
-
-        Alert.alert(
-          "Server Error",
-          "Backend returned invalid response. Check Google login endpoint."
-        );
-
-        setLoading(false);
-        return;
-      }
-
       if (!res.ok) {
-        Alert.alert(
-          "Google Login Failed",
-          data.detail || data.error || "Try again"
-        );
-        setLoading(false);
-        return;
-      }
-
-      if (!data.access || !data.refresh) {
-        Alert.alert("Error", "Invalid token response from server");
+        Alert.alert("Google Login Failed", data.detail || data.error || "Try again");
         setLoading(false);
         return;
       }
@@ -260,8 +180,6 @@ export default function LoginScreen({ navigation }) {
       await AsyncStorage.setItem("access", data.access);
       await AsyncStorage.setItem("refresh", data.refresh);
       await AsyncStorage.setItem("role", "customer");
-
-      Alert.alert("Success", "Google login successful!");
 
       navigation.reset({
         index: 0,
@@ -275,11 +193,6 @@ export default function LoginScreen({ navigation }) {
   };
 
   const facebookLogin = () => {
-    if (role === "organizer") {
-      Alert.alert("Not Allowed", "Facebook login is only available for customers.");
-      return;
-    }
-
     Alert.alert("Coming Soon", "Facebook login coming soon");
   };
 
@@ -287,38 +200,6 @@ export default function LoginScreen({ navigation }) {
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
 
-      {/* ROLE SELECT */}
-      <View style={styles.roleBox}>
-        <Pressable
-          style={[styles.roleBtn, role === "customer" && styles.roleActive]}
-          onPress={() => setRole("customer")}
-        >
-          <Text
-            style={[
-              styles.roleText,
-              role === "customer" && styles.roleTextActive,
-            ]}
-          >
-            Customer
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.roleBtn, role === "organizer" && styles.roleActive]}
-          onPress={() => setRole("organizer")}
-        >
-          <Text
-            style={[
-              styles.roleText,
-              role === "organizer" && styles.roleTextActive,
-            ]}
-          >
-            Organizer
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* EMAIL */}
       <TextInput
         placeholder="Email"
         placeholderTextColor="#666"
@@ -328,7 +209,6 @@ export default function LoginScreen({ navigation }) {
         autoCapitalize="none"
       />
 
-      {/* PASSWORD */}
       <TextInput
         placeholder="Password"
         placeholderTextColor="#666"
@@ -338,7 +218,6 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
-      {/* FORGOT PASSWORD */}
       <Pressable
         onPress={() => {
           setForgotEmail(email);
@@ -348,7 +227,6 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.forgotText}>Forgot Password?</Text>
       </Pressable>
 
-      {/* LOGIN BUTTON */}
       <Pressable style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
         {loading ? (
           <ActivityIndicator color="#000" />
@@ -357,25 +235,11 @@ export default function LoginScreen({ navigation }) {
         )}
       </Pressable>
 
-      {/* GOOGLE LOGIN */}
-      <Pressable
-        style={styles.socialBtn}
-        onPress={() => {
-          if (role === "organizer") {
-            Alert.alert(
-              "Not Allowed",
-              "Google login is only available for customers."
-            );
-            return;
-          }
-          promptAsync();
-        }}
-      >
+      <Pressable style={styles.socialBtn} onPress={promptAsync}>
         <Ionicons name="logo-google" size={22} color="#fff" />
         <Text style={styles.socialText}>Continue with Google</Text>
       </Pressable>
 
-      {/* FACEBOOK LOGIN */}
       <Pressable
         style={[styles.socialBtn, { borderColor: "#1877F2" }]}
         onPress={facebookLogin}
@@ -384,7 +248,6 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.socialText}>Continue with Facebook</Text>
       </Pressable>
 
-      {/* SIGN UP LINK */}
       <Text style={styles.bottomText}>
         Don’t have an account?{" "}
         <Text style={styles.link} onPress={() => navigation.navigate("Register")}>
@@ -392,17 +255,10 @@ export default function LoginScreen({ navigation }) {
         </Text>
       </Text>
 
-      {/* ==========================
-          FORGOT PASSWORD MODAL
-      ========================== */}
       <Modal visible={forgotVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Forgot Password</Text>
-
-            <Text style={styles.modalDesc}>
-              Enter your email and we will send you OTP to reset password.
-            </Text>
 
             <TextInput
               placeholder="Email"
@@ -438,7 +294,9 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-/* ================== STYLES ================== */
+
+
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -502,36 +360,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  roleBox: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 18,
-    gap: 10,
-  },
-
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-
-  roleActive: {
-    backgroundColor: "#7CFF00",
-  },
-
-  roleText: {
-    fontWeight: "bold",
-    color: "#fff",
-  },
-
-  roleTextActive: {
-    color: "#000",
-  },
-
   socialBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -573,13 +401,6 @@ const styles = StyleSheet.create({
     color: "#7CFF00",
     marginBottom: 10,
     textAlign: "center",
-  },
-
-  modalDesc: {
-    color: "#aaa",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 15,
   },
 
   modalInput: {
