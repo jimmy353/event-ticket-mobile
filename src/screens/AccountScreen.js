@@ -55,7 +55,7 @@ export default function AccountScreen({ navigation }) {
           <Ionicons name="person" size={38} color="#000" />
         </View>
 
-        <Text style={styles.name}>Sirheart User</Text>
+        <Text style={styles.name}>Sirheart Events</Text>
         <Text style={styles.email}>Premium Member</Text>
       </LinearGradient>
 
@@ -64,27 +64,7 @@ export default function AccountScreen({ navigation }) {
         <Item
           icon="person-outline"
           title="View Profile"
-          onPress={() => Alert.alert("Coming Soon")}
-        />
-        <Item
-          icon="create-outline"
-          title="Change Name"
-          onPress={() => Alert.alert("Coming Soon")}
-        />
-        <Item
-          icon="call-outline"
-          title="Change Phone"
-          onPress={() => Alert.alert("Coming Soon")}
-        />
-        <Item
-          icon="mail-outline"
-          title="Change Email"
-          onPress={() => Alert.alert("Coming Soon")}
-        />
-        <Item
-          icon="lock-closed-outline"
-          title="Change Password"
-          onPress={() => navigation.navigate("ChangePassword")}
+          onPress={() => navigation.navigate("Profile")}
         />
         <Item
           icon="cart-outline"

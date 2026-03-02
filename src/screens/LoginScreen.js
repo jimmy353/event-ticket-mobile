@@ -53,7 +53,7 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      const res = await apiFetch("/api/auth/login-role/", {
+      const res = await apiFetch("/api/auth/login/", {
         method: "POST",
         body: JSON.stringify({
           email,

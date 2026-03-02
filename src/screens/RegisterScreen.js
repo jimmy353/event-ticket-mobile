@@ -19,7 +19,6 @@ import { apiFetch } from "../services/api";
 
 export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -44,21 +43,30 @@ export default function RegisterScreen({ navigation }) {
     try {
       const res = await apiFetch("/api/auth/register/", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           email,
           password,
         }),
       });
 
+      const data = await res.json();
+
+      console.log("REGISTER RESPONSE:", data);
+
       if (!res.ok) {
-        Alert.alert("Register Failed");
+        Alert.alert("Register Failed", JSON.stringify(data));
         setLoading(false);
         return;
       }
 
-      Alert.alert("Account Created ✅");
-      navigation.navigate("Login");
-    } catch {
+      Alert.alert("Account Created ✅", "Please verify your email.");
+      navigation.navigate("VerifyOTP", { email });
+
+    } catch (err) {
+      console.log("REGISTER ERROR:", err);
       Alert.alert("Error", "Something went wrong");
     }
 
@@ -95,7 +103,11 @@ export default function RegisterScreen({ navigation }) {
             onChangeText={setPassword}
           />
 
-          <Pressable style={styles.button} onPress={handleRegister}>
+          <Pressable
+            style={styles.button}
+            onPress={handleRegister}
+            disabled={loading}
+          >
             {loading ? (
               <ActivityIndicator color="#000" />
             ) : (

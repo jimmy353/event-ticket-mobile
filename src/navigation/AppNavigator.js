@@ -18,6 +18,7 @@ import MyOrdersScreen from "../screens/MyOrdersScreen";
 import ResetPasswordScreen from "../screens/ResetPasswordScreen";
 import VerifyOTPScreen from "../screens/VerifyOTPScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -81,11 +82,13 @@ export default function AppNavigator() {
       <Stack.Screen name="TicketList" component={TicketListScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="PaymentSuccess" component={PaymentSuccessScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
 
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }}
+      
 />
     </Stack.Navigator>
   );
