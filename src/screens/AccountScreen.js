@@ -78,7 +78,7 @@ export default function AccountScreen({ navigation }) {
         <Item
           icon="notifications-outline"
           title="Event Reminders"
-          onPress={() => Alert.alert("Coming Soon")}
+          onPress={() => navigation.navigate("EventReminders")}
         />
         <Item
           icon="refresh-outline"

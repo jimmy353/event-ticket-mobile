@@ -19,6 +19,8 @@ import ResetPasswordScreen from "../screens/ResetPasswordScreen";
 import VerifyOTPScreen from "../screens/VerifyOTPScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import ChangePasswordScreen from "../screens/ChangePasswordScreen";
+import EventRemindersScreen from "../screens/EventRemindersScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -83,6 +85,9 @@ export default function AppNavigator() {
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="PaymentSuccess" component={PaymentSuccessScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="EventReminders" component={EventRemindersScreen} options={{ headerShown: false }}
+/>
 
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
