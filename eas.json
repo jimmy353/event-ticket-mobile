@@ -11,6 +11,9 @@
       "distribution": "internal",
       "cache": {
         "key": "v1"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
 
@@ -21,9 +24,6 @@
       },
       "android": {
         "buildType": "apk"
-      },
-      "ios": {
-        "simulator": false
       }
     },
 
@@ -33,10 +33,7 @@
         "key": "v1"
       },
       "android": {
-        "buildType": "app-bundle"
-      },
-      "ios": {
-        "simulator": false
+        "buildType": "apk"
       }
     }
 
