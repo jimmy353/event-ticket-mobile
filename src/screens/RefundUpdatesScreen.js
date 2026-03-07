@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -21,9 +22,10 @@ export default function RefundUpdatesScreen({ navigation }) {
   async function loadRefunds() {
     try {
 
-      const token = global.token;
+      const token = await AsyncStorage.getItem("access");
 
       const res = await fetch(`${API_URL}/api/refunds/my/`, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
