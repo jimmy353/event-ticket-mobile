@@ -83,7 +83,7 @@ export default function AccountScreen({ navigation }) {
         <Item
           icon="refresh-outline"
           title="Refund Updates"
-          onPress={() => Alert.alert("Coming Soon")}
+          onPress={() => navigation.navigate("RefundUpdates")}
         />
         <Item
           icon="card-outline"

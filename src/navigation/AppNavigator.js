@@ -14,6 +14,7 @@ import CheckoutScreen from "../screens/CheckoutScreen";
 import PaymentSuccessScreen from "../screens/PaymentSuccessScreen";
 
 import RefundRequestScreen from "../screens/RefundRequestScreen";
+import RefundUpdatesScreen from "../screens/RefundUpdatesScreen";
 import MyOrdersScreen from "../screens/MyOrdersScreen";
 import ResetPasswordScreen from "../screens/ResetPasswordScreen";
 import VerifyOTPScreen from "../screens/VerifyOTPScreen";
@@ -92,9 +93,8 @@ export default function AppNavigator() {
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }}
-      
-/>
+      <Stack.Screen name="RefundUpdates" component={RefundUpdatesScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
