@@ -51,11 +51,14 @@ try {
     return;
   }
 
-  Alert.alert("Success", "MoMo number saved");
-
   setLoading(false);
 
-  navigation.goBack();
+  Alert.alert("Success", "MoMo number saved", [
+    {
+      text: "OK",
+      onPress: () => navigation.navigate("SavedPayments")
+    }
+  ]);
 
 } catch (err) {
 
