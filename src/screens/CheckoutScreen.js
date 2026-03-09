@@ -16,7 +16,6 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { apiFetch, safeJson } from "../services/api";
 
 export default function CheckoutScreen({ route, navigation }) {
@@ -27,13 +26,13 @@ export default function CheckoutScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
 
   // ================================
-  // LOAD DEFAULT PHONE
+  // LOAD DEFAULT PAYMENT
   // ================================
   useEffect(() => {
-    loadDefaultPhone();
+    loadDefaultPayment();
   }, []);
 
-  async function loadDefaultPhone() {
+  async function loadDefaultPayment() {
     try {
       const token = await AsyncStorage.getItem("access");
 
@@ -48,11 +47,59 @@ export default function CheckoutScreen({ route, navigation }) {
 
       const data = await res.json();
 
-      if (data.phone_number) {
-        setPhone(data.phone_number);
+      if (data.phone) {
+        setPhone(data.phone);
+        detectProvider(data.phone);
+      }
+
+      if (data.provider) {
+        setSelectedPayment(data.provider.toLowerCase());
       }
     } catch (err) {
-      console.log("Default phone error:", err);
+      console.log("Default payment load error:", err);
+    }
+  }
+
+  // ================================
+  // AUTO DETECT PROVIDER
+  // ================================
+  function detectProvider(phoneNumber) {
+    if (!phoneNumber) return;
+
+    const prefix = phoneNumber.substring(0, 3);
+
+    if (prefix === "092" || prefix === "092") {
+      setSelectedPayment("momo");
+    }
+
+    if (prefix === "091" || prefix === "091") {
+      setSelectedPayment("mgurush");
+    }
+  }
+
+  // ================================
+  // SAVE PAYMENT METHOD
+  // ================================
+  async function savePaymentMethod() {
+    try {
+      const token = await AsyncStorage.getItem("access");
+
+      await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/payments/saved/add/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            provider: selectedPayment.toUpperCase(),
+            phone_number: phone,
+          }),
+        }
+      );
+    } catch (err) {
+      console.log("Save payment method error:", err);
     }
   }
 
@@ -84,6 +131,9 @@ export default function CheckoutScreen({ route, navigation }) {
     });
   };
 
+  // ================================
+  // HANDLE PAYMENT
+  // ================================
   const handlePay = async () => {
     if (!phone) {
       Alert.alert("Error", "Please enter your phone number");
@@ -93,19 +143,17 @@ export default function CheckoutScreen({ route, navigation }) {
     setLoading(true);
 
     try {
-      // 1️⃣ CREATE ORDER
+      // CREATE ORDER
       const orderRes = await createOrder();
       const orderData = await safeJson(orderRes);
 
       if (orderData?.raw) {
-        console.log("❌ Order create returned HTML:", orderData.raw);
         Alert.alert("Server Error", "Backend returned invalid response.");
         setLoading(false);
         return;
       }
 
       if (!orderRes.ok) {
-        console.log("❌ Order create error:", orderData);
         Alert.alert("Order Error", orderData.error || "Could not create order");
         setLoading(false);
         return;
@@ -113,23 +161,24 @@ export default function CheckoutScreen({ route, navigation }) {
 
       const orderId = orderData.id;
 
-      // 2️⃣ INITIATE PAYMENT
+      // INITIATE PAYMENT
       const payRes = await initiatePayment(orderId);
       const payData = await safeJson(payRes);
 
       if (payData?.raw) {
-        console.log("❌ Payment returned HTML:", payData.raw);
         Alert.alert("Server Error", "Backend returned invalid response.");
         setLoading(false);
         return;
       }
 
       if (!payRes.ok) {
-        console.log("❌ Payment error:", payData);
         Alert.alert("Payment Error", payData.error || "Payment failed");
         setLoading(false);
         return;
       }
+
+      // SAVE PAYMENT METHOD AUTOMATICALLY
+      await savePaymentMethod();
 
       setLoading(false);
 
@@ -140,7 +189,7 @@ export default function CheckoutScreen({ route, navigation }) {
       });
 
     } catch (err) {
-      console.log("❌ Checkout error:", err);
+      console.log("Checkout error:", err);
       Alert.alert("Error", err.message || "Something went wrong.");
       setLoading(false);
     }
@@ -223,7 +272,10 @@ export default function CheckoutScreen({ route, navigation }) {
             placeholder="0912345678"
             placeholderTextColor="#777"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => {
+              setPhone(text);
+              detectProvider(text);
+            }}
             returnKeyType="done"
             onSubmitEditing={Keyboard.dismiss}
           />
