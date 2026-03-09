@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "996485176880",
+    "project_id": "axial-triode-433118-u0",
+    "storage_bucket": "axial-triode-433118-u0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996485176880:android:0abca610184367fd7ed7f5",
+        "android_client_info": {
+          "package_name": "com.sirheartevents.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "996485176880-rfhnikqbv6poo822qbqn8bgpijt82v37.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnHrMtywLCg5lkBImTIQeRSzHtQl2go20"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "996485176880-rfhnikqbv6poo822qbqn8bgpijt82v37.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "996485176880-v9iovhr80hbffkhpdc0f3hhjhne6jrb6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sirheartevents"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
