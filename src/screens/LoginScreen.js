@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { apiFetch, safeJson } from "../services/api";
 import { useGoogleAuth } from "../services/googleAuth";
+import { registerPushToken } from "../services/push";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
