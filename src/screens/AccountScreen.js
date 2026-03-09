@@ -88,7 +88,7 @@ export default function AccountScreen({ navigation }) {
         <Item
           icon="card-outline"
           title="Payment Confirmation"
-          onPress={() => Alert.alert("Coming Soon")}
+          onPress={() => navigation.navigate("PaymentConfirmation")}
         />
       </Section>
 
@@ -97,12 +97,12 @@ export default function AccountScreen({ navigation }) {
         <Item
           icon="card-outline"
           title="Saved Payment Methods"
-          onPress={() => Alert.alert("Coming Soon")}
+          onPress={() => navigation.navigate("PaymentSettings")}
         />
         <Item
           icon="phone-portrait-outline"
           title="Default Provider (MoMo / M-Gurush)"
-          onPress={() => Alert.alert("Coming Soon")}
+          onPress={() => navigation.navigate("PaymentSettings")}
         />
       </Section>
 

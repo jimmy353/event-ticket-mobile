@@ -23,6 +23,12 @@ import ProfileScreen from "../screens/ProfileScreen";
 import ChangePasswordScreen from "../screens/ChangePasswordScreen";
 import EventRemindersScreen from "../screens/EventRemindersScreen";
 
+import PaymentSettingsScreen from "../screens/PaymentSettingsScreen";
+import SavedPaymentsScreen from "../screens/SavedPaymentsScreen";
+import AddPaymentMethodScreen from "../screens/AddPaymentMethodScreen";
+
+import PaymentConfirmationSettings from "../screens/PaymentConfirmationSettings";
+
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -87,8 +93,11 @@ export default function AppNavigator() {
       <Stack.Screen name="PaymentSuccess" component={PaymentSuccessScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-      <Stack.Screen name="EventReminders" component={EventRemindersScreen} options={{ headerShown: false }}
-/>
+      <Stack.Screen name="EventReminders" component={EventRemindersScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="PaymentConfirmation" component={PaymentConfirmationSettings} />
+      <Stack.Screen name="PaymentSettings" component={PaymentSettingsScreen} options={{ headerShown:false }} />
+      <Stack.Screen name="SavedPayments" component={SavedPaymentsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="AddPaymentMethod" component={AddPaymentMethodScreen} options={{ headerShown: false }} />
 
       {/* USER */}
       <Stack.Screen name="RefundRequest" component={RefundRequestScreen} />

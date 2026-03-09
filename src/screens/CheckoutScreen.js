@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
   Alert,
 } from "react-native";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { apiFetch, safeJson } from "../services/api";
 
 export default function CheckoutScreen({ route, navigation }) {
@@ -24,7 +26,39 @@ export default function CheckoutScreen({ route, navigation }) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🛒 CREATE ORDER
+  // ================================
+  // LOAD DEFAULT PHONE
+  // ================================
+  useEffect(() => {
+    loadDefaultPhone();
+  }, []);
+
+  async function loadDefaultPhone() {
+    try {
+      const token = await AsyncStorage.getItem("access");
+
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/payments/saved/default/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (data.phone_number) {
+        setPhone(data.phone_number);
+      }
+    } catch (err) {
+      console.log("Default phone error:", err);
+    }
+  }
+
+  // ================================
+  // CREATE ORDER
+  // ================================
   const createOrder = async () => {
     return apiFetch("/api/orders/create/", {
       method: "POST",
@@ -36,7 +70,9 @@ export default function CheckoutScreen({ route, navigation }) {
     });
   };
 
-  // 💳 INITIATE PAYMENT
+  // ================================
+  // INITIATE PAYMENT
+  // ================================
   const initiatePayment = async (orderId) => {
     return apiFetch("/api/payments/initiate/", {
       method: "POST",
@@ -102,6 +138,7 @@ export default function CheckoutScreen({ route, navigation }) {
         amount: `SSP ${ticket.price * quantity}`,
         orderId: orderId,
       });
+
     } catch (err) {
       console.log("❌ Checkout error:", err);
       Alert.alert("Error", err.message || "Something went wrong.");
@@ -118,25 +155,34 @@ export default function CheckoutScreen({ route, navigation }) {
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView contentContainerStyle={styles.container}>
+
+          {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
               <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
+
             <View>
               <Text style={styles.headerTitle}>Checkout</Text>
               <Text style={styles.headerSubtitle}>Confirm & pay securely</Text>
             </View>
           </View>
 
+          {/* ORDER CARD */}
           <View style={styles.card}>
             <Text style={styles.eventTitle}>{event.title}</Text>
             <Text style={styles.subText}>{ticket.name}</Text>
             <Text style={styles.subText}>Quantity: {quantity}</Text>
+
             <View style={styles.divider} />
+
             <Text style={styles.subText}>Total Amount</Text>
-            <Text style={styles.amount}>SSP {ticket.price * quantity}</Text>
+            <Text style={styles.amount}>
+              SSP {ticket.price * quantity}
+            </Text>
           </View>
 
+          {/* PAYMENT METHOD */}
           <Text style={styles.sectionTitle}>Select Payment Method</Text>
 
           <TouchableOpacity
@@ -164,8 +210,11 @@ export default function CheckoutScreen({ route, navigation }) {
             <Text style={styles.paymentText}>M-Gurush</Text>
           </TouchableOpacity>
 
+          {/* PHONE INPUT */}
           <Text style={styles.inputLabel}>
-            {selectedPayment === "momo" ? "MTN MoMo Number" : "M-Gurush Number"}
+            {selectedPayment === "momo"
+              ? "MTN MoMo Number"
+              : "M-Gurush Number"}
           </Text>
 
           <TextInput
@@ -179,6 +228,7 @@ export default function CheckoutScreen({ route, navigation }) {
             onSubmitEditing={Keyboard.dismiss}
           />
 
+          {/* PAY BUTTON */}
           <TouchableOpacity
             style={styles.payButton}
             onPress={handlePay}
@@ -188,6 +238,7 @@ export default function CheckoutScreen({ route, navigation }) {
               {loading ? "Processing..." : "Pay Now"}
             </Text>
           </TouchableOpacity>
+
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -196,31 +247,42 @@ export default function CheckoutScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 40 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 24,
     paddingTop: Platform.OS === "ios" ? 50 : 30,
   },
+
   backArrow: { color: "#7CFF00", fontSize: 30, marginRight: 14 },
+
   headerTitle: { color: "#fff", fontSize: 28, fontWeight: "bold" },
+
   headerSubtitle: { color: "#888", fontSize: 14 },
+
   card: {
     backgroundColor: "#111",
     borderRadius: 18,
     padding: 18,
     marginBottom: 25,
   },
+
   eventTitle: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+
   subText: { color: "#aaa", marginTop: 4 },
+
   divider: { height: 1, backgroundColor: "#222", marginVertical: 12 },
+
   amount: { color: "#7CFF00", fontSize: 26, fontWeight: "bold" },
+
   sectionTitle: {
     color: "#7CFF00",
     fontSize: 18,
     marginBottom: 12,
     fontWeight: "bold",
   },
+
   paymentCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -229,7 +291,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 14,
   },
+
   selected: { borderWidth: 2, borderColor: "#7CFF00" },
+
   logo: {
     width: 65,
     height: 40,
@@ -238,8 +302,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginRight: 14,
   },
+
   paymentText: { color: "#fff", fontSize: 18, fontWeight: "600" },
+
   inputLabel: { color: "#aaa", marginBottom: 6 },
+
   input: {
     backgroundColor: "#111",
     borderRadius: 14,
@@ -248,11 +315,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 25,
   },
+
   payButton: {
     backgroundColor: "#7CFF00",
     paddingVertical: 18,
     borderRadius: 30,
     alignItems: "center",
   },
+
   payText: { color: "#000", fontSize: 18, fontWeight: "bold" },
 });
