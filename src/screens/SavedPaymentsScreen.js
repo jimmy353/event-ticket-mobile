@@ -1,8 +1,46 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TouchableOpacity,
+  FlatList
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function SavedPaymentsScreen({ navigation }) {
+
+  const [payments, setPayments] = useState([]);
+
+  useEffect(() => {
+    loadPayments();
+  }, []);
+
+  const loadPayments = async () => {
+
+    try {
+      const token = await AsyncStorage.getItem("access");
+
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/payments/saved/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await res.json();
+
+      setPayments(data);
+
+    } catch (err) {
+      console.log("Load payments error:", err);
+    }
+  };
+
   return (
     <View style={styles.container}>
 
@@ -12,14 +50,39 @@ export default function SavedPaymentsScreen({ navigation }) {
 
       <Text style={styles.title}>Saved Payment Methods</Text>
 
-      <View style={styles.card}>
-        <Ionicons name="phone-portrait-outline" size={22} color="#7CFF00" />
-        <Text style={styles.text}>No saved MoMo numbers yet</Text>
-      </View>
+      {payments.length === 0 ? (
 
-      <Pressable style={styles.button}>
+        <View style={styles.card}>
+          <Ionicons name="phone-portrait-outline" size={22} color="#7CFF00" />
+          <Text style={styles.text}>No saved MoMo numbers yet</Text>
+        </View>
+
+      ) : (
+
+        <FlatList
+          data={payments}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+
+            <View style={styles.card}>
+              <Ionicons name="phone-portrait-outline" size={22} color="#7CFF00" />
+              <View>
+                <Text style={styles.number}>{item.phone_number}</Text>
+                <Text style={styles.provider}>{item.provider}</Text>
+              </View>
+            </View>
+
+          )}
+        />
+
+      )}
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate("AddPaymentMethod")}
+      >
         <Text style={styles.buttonText}>Add MoMo Number</Text>
-      </Pressable>
+      </TouchableOpacity>
 
     </View>
   );
@@ -53,12 +116,24 @@ card:{
   padding:20,
   flexDirection:"row",
   alignItems:"center",
-  gap:10
+  gap:12,
+  marginBottom:12
 },
 
 text:{
   color:"#ccc",
   fontSize:15
+},
+
+number:{
+  color:"#fff",
+  fontSize:16,
+  fontWeight:"bold"
+},
+
+provider:{
+  color:"#777",
+  fontSize:13
 },
 
 button:{
