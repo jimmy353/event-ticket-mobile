@@ -103,6 +103,8 @@ export default function LoginScreen({ navigation }) {
       await AsyncStorage.setItem("refresh", data.refresh);
       await AsyncStorage.setItem("role", "customer");
 
+      await registerPushToken(data.access);
+
       Alert.alert("Success", "Login successful!");
 
       navigation.reset({
